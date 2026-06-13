@@ -54,6 +54,7 @@ DATABASE_PROVIDER=supabase
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_DATABASE_URL=
+DATABASE_URL=
 ```
 
 The old MongoDB mode is no longer needed for normal use. If you do use it later, provide:

@@ -151,8 +151,8 @@ app.use((err, req, res, next) => {
 
 async function connectDatabase() {
   if (databaseProvider === 'supabase') {
-    if (!process.env.SUPABASE_DATABASE_URL) {
-      throw new Error('SUPABASE_DATABASE_URL is required for Supabase mode.');
+    if (!process.env.SUPABASE_DATABASE_URL && !process.env.DATABASE_URL) {
+      throw new Error('SUPABASE_DATABASE_URL or DATABASE_URL is required for Supabase/Postgres mode.');
     }
     await initSchema();
     console.log('Supabase Postgres connected and schema ready');
