@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exam Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-box {
+      width: 100%; max-width: 420px; padding: 16px;
+    }
+    .logo {
+      text-align: center; margin-bottom: 36px;
+    }
+    .logo svg { width: 48px; height: 48px; margin-bottom: 12px; }
+    .logo h1 { font-size: 1.4rem; color: var(--text); }
+    .logo p { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+    .secure-note {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: rgba(79,110,247,0.08); border: 1px solid rgba(79,110,247,0.2);
+      border-radius: var(--radius); padding: 12px 14px; margin-top: 20px; font-size: 12px;
+      color: var(--text-muted); line-height: 1.5;
+    }
+    .secure-note svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="logo">
+      <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="12" fill="#1a2040"/>
+        <path d="M24 10L34 15V24C34 30.627 29.627 36.627 24 38C18.373 36.627 14 30.627 14 24V15L24 10Z" stroke="#4f6ef7" stroke-width="2" fill="rgba(79,110,247,0.1)"/>
+        <path d="M20 24L23 27L28 21" stroke="#4f6ef7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1>Online Examination</h1>
+      <p>Secure Coding Assessment Portal</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:4px;">Student Login</h2>
+      <p class="text-muted" style="font-size:13px;margin-bottom:20px;">Enter your credentials to begin the exam</p>
+
+      <div id="error-msg" class="alert alert-danger hidden"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Roll Number</label>
+          <input type="text" id="roll-number" class="input" placeholder="e.g. CS2024001" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="20" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="full-name" class="input" placeholder="As per records" autocomplete="off" spellcheck="false" maxlength="100" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">
+          Begin Exam
+        </button>
+      </form>
+
+      <div class="secure-note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>This exam is monitored. Switching tabs, exiting fullscreen, or using keyboard shortcuts will result in automatic submission. You have <strong>one attempt only</strong>.</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Prevent going back to exam after logout
+    history.pushState(null, '', location.href);
+    window.onpopstate = () => history.pushState(null, '', location.href);
+
+    const form = document.getElementById('login-form');
+    const errDiv = document.getElementById('error-msg');
+    const btn = document.getElementById('login-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const rollNumber = document.getElementById('roll-number').value.trim();
+      const fullName = document.getElementById('full-name').value.trim();
+
+      if (!rollNumber || !fullName) {
+        showError('Please enter both Roll Number and Full Name.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Verifying...';
+      errDiv.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/auth/student/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rollNumber, fullName }),
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          window.location.href = '/exam';
+        } else {
+          showError(data.error || 'Login failed. Please try again.');
+        }
+      } catch (err) {
+        showError('Connection error. Please check your internet connection.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Begin Exam';
+      }
+    });
+
+    function showError(msg) {
+      errDiv.textContent = msg;
+      errDiv.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>

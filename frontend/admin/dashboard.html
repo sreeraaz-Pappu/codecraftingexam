@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unified Exam Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <style>
+    .control-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-bottom:20px; align-items:start; }
+    .wide-card { min-height:100%; }
+    .portal-panel { border:1px solid var(--border); border-radius:12px; background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,0)); padding:18px; }
+    .portal-panel .section-header { margin-bottom:12px; }
+    .panel-kicker { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:4px; }
+    .url-box { display:flex; align-items:center; justify-content:space-between; gap:10px; background:rgba(79,110,247,.08); border:1px solid rgba(79,110,247,.25); border-radius:8px; padding:10px 12px; font-family:var(--mono); font-size:12px; color:var(--accent); word-break:break-all; }
+    .url-box button { flex:0 0 auto; }
+    .exam-list { display:grid; grid-template-columns:1fr; gap:14px; }
+    #mcq-list.exam-list { grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); }
+    .exam-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; box-shadow:0 12px 28px rgba(0,0,0,.16); }
+    .exam-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .exam-title { font-weight:700; margin-bottom:4px; line-height:1.25; }
+    .exam-code { font-family:var(--mono); color:var(--accent); font-size:12px; }
+    .mini-stats { display:flex; flex-wrap:wrap; gap:8px; color:var(--text-muted); font-size:12px; margin:10px 0; }
+    .mini-stats span { border:1px solid var(--border); border-radius:999px; padding:4px 8px; background:var(--surface2); }
+    .action-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .empty-inline { color:var(--text-muted); font-size:13px; border:1px dashed var(--border); border-radius:10px; padding:18px; background:var(--surface2); }
+    .modal-overlay { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.65); }
+    .modal-overlay.hidden { display:none; }
+    .modal-panel { width:min(720px,92vw); max-height:90vh; overflow:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px; }
+    .modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .section-tabs { display:flex; gap:8px; margin-bottom:18px; }
+    .section-tabs button.active { background:var(--accent); color:white; border-color:var(--accent); }
+    .tab-section { display:none; }
+    .tab-section.active { display:block; }
+    @media(max-width:900px) { .control-grid, .form-row { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h2>CodeCraftingExam</h2>
+      <p>Unified Control Panel</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item active" data-nav-tab="overview">Dashboard</a>
+      <button type="button" class="nav-item" data-nav-tab="coding" onclick="showTab('coding')">Coding Exam</button>
+      <button type="button" class="nav-item" data-nav-tab="mcq" onclick="showTab('mcq')">MCQ/Fill Exams</button>
+      <a href="/admin/questions" class="nav-item">Coding Questions</a>
+      <a href="/admin/mcq-questions" class="nav-item">MCQ/Fill Questions</a>
+      <a href="/admin/results" class="nav-item">Coding Results</a>
+      <a href="/admin/mcq-results" class="nav-item">MCQ/Fill Results</a>
+      <a href="/admin/monitor" class="nav-item">Live Monitor</a>
+      <a href="/admin/health" class="nav-item">System Health</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <span class="page-title">Unified Dashboard</span>
+    </div>
+
+    <div class="admin-content">
+      <div class="section-tabs">
+        <button class="btn btn-ghost active" data-tab="overview" onclick="showTab('overview')">Overview</button>
+        <button class="btn btn-ghost" data-tab="coding" onclick="showTab('coding')">Coding Exam</button>
+        <button class="btn btn-ghost" data-tab="mcq" onclick="showTab('mcq')">MCQ/Fill Exams</button>
+      </div>
+
+      <section id="tab-overview" class="tab-section active">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Coding Students</div><div class="stat-value" id="coding-students">-</div></div>
+          <div class="stat-card"><div class="stat-label">Coding Submitted</div><div class="stat-value" id="coding-submitted">-</div></div>
+          <div class="stat-card"><div class="stat-label">MCQ Exams</div><div class="stat-value" id="mcq-exams-count">-</div></div>
+          <div class="stat-card"><div class="stat-label">MCQ Responses</div><div class="stat-value" id="mcq-responses-count">-</div></div>
+        </div>
+        <div class="card" id="health-summary" style="margin-bottom:20px;">
+          <div class="text-muted">Checking system health...</div>
+        </div>
+
+        <div class="control-grid">
+          <div class="portal-panel wide-card">
+            <div class="section-header">
+              <div>
+                <div class="panel-kicker">Programming Assessment</div>
+                <h3>Coding Exam</h3>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span id="coding-status"></span>
+                <button class="btn btn-primary btn-sm" onclick="showCodingSetup()">Create Exam</button>
+              </div>
+            </div>
+            <div id="overview-coding-list" class="exam-list"></div>
+          </div>
+
+          <div class="portal-panel wide-card">
+            <div class="section-header">
+              <div>
+                <div class="panel-kicker">Objective Assessment</div>
+                <h3>MCQ/Fill Exams</h3>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span id="mcq-active-count"></span>
+                <button class="btn btn-primary btn-sm" onclick="showExamModal()">Create Exam</button>
+              </div>
+            </div>
+            <div id="overview-mcq-list" class="exam-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-coding" class="tab-section">
+        <div class="section-header">
+          <h3>Coding Exam</h3>
+          <button class="btn btn-primary btn-sm" onclick="showCodingSetup()">Create Exam</button>
+        </div>
+        <div id="coding-page-card" class="exam-list"></div>
+
+        <div id="coding-setup-panel" class="card hidden" style="margin-top:16px;">
+          <div class="section-header">
+            <h3>Coding Exam Setup</h3>
+            <button class="btn btn-primary btn-sm" onclick="saveCodingSettings()">Save Settings</button>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Duration (minutes)</label>
+              <input type="number" id="coding-duration" class="input" min="1" max="480">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Execution Timeout (ms)</label>
+              <input type="number" id="coding-timeout" class="input" min="1000" max="30000">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="coding-active" class="input">
+                <option value="false">Inactive</option>
+                <option value="true">Active</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Allowed Languages</label>
+              <div id="coding-languages" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">
+                <label><input type="checkbox" value="python"> Python</label>
+                <label><input type="checkbox" value="java"> Java</label>
+                <label><input type="checkbox" value="c"> C</label>
+                <label><input type="checkbox" value="cpp"> C++</label>
+              </div>
+            </div>
+          </div>
+          <div id="coding-settings-msg" class="hidden" style="margin-top:12px;"></div>
+        </div>
+      </section>
+
+      <section id="tab-mcq" class="tab-section">
+        <div class="section-header">
+          <h3>MCQ/Fill Exams</h3>
+          <button class="btn btn-primary btn-sm" onclick="showExamModal()">Create Exam</button>
+        </div>
+        <div id="mcq-list" class="exam-list"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="exam-modal" class="modal-overlay hidden">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="exam-modal-title">Create MCQ/Fill Exam</h3>
+      <button class="btn btn-ghost btn-sm" onclick="hideExamModal()">Close</button>
+    </div>
+    <input type="hidden" id="exam-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Exam Title</label>
+        <input type="text" id="exam-title" class="input" placeholder="Midterm Assessment">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Exam Code</label>
+        <input type="text" id="exam-code" class="input" placeholder="midterm-2026">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Duration (minutes)</label>
+        <input type="number" id="exam-duration" class="input" min="5" max="300" value="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="exam-active" class="input">
+          <option value="false">Inactive</option>
+          <option value="true">Active</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Instructions</label>
+      <textarea id="exam-instructions" class="input" rows="3"></textarea>
+    </div>
+    <div id="exam-modal-msg" class="alert alert-danger hidden"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="hideExamModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMcqExam()">Save Exam</button>
+    </div>
+  </div>
+</div>
+
+<div id="question-modal" class="modal-overlay hidden">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="question-modal-title">Add Question</h3>
+      <button class="btn btn-ghost btn-sm" onclick="hideQuestionModal()">Close</button>
+    </div>
+    <input type="hidden" id="question-id">
+    <input type="hidden" id="question-exam-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select id="question-type" class="input" onchange="toggleQuestionType()">
+          <option value="mcq">MCQ</option>
+          <option value="fill">Fill in the Blank</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Order</label>
+        <input type="number" id="question-order" class="input" value="1" min="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Question Text</label>
+      <textarea id="question-text" class="input" rows="3"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Question Image (optional)</label>
+      <input type="file" id="question-image" class="input" accept="image/*">
+    </div>
+    <div id="mcq-options">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Option A</label><input id="option-0" class="input"></div>
+        <div class="form-group"><label class="form-label">Option B</label><input id="option-1" class="input"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Option C</label><input id="option-2" class="input"></div>
+        <div class="form-group"><label class="form-label">Option D</label><input id="option-3" class="input"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Correct Option</label>
+        <select id="correct-mcq" class="input">
+          <option value="0">Option A</option>
+          <option value="1">Option B</option>
+          <option value="2">Option C</option>
+          <option value="3">Option D</option>
+        </select>
+      </div>
+    </div>
+    <div id="fill-answer" class="form-group hidden">
+      <label class="form-label">Correct Answer</label>
+      <input type="text" id="correct-fill" class="input">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Marks</label>
+      <input type="number" id="question-marks" class="input" value="1" min="1">
+    </div>
+    <div id="question-modal-msg" class="alert alert-danger hidden"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="hideQuestionModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuestion()">Save Question</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const MCQ_API = '/api/mcq-admin';
+  let mcqExams = [];
+  let mcqQuestionsByExam = {};
+  let currentResultsExamId = null;
+
+  checkAuth();
+
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) {
+      window.location.href = window.location.pathname.startsWith('/mcq-admin') ? '/mcq-admin' : '/admin';
+      return;
+    }
+    setStudentUrls();
+    await Promise.all([loadCodingData(), loadMcqExams()]);
+    loadHealthSummary();
+  }
+
+  async function loadHealthSummary() {
+    const box = document.getElementById('health-summary');
+    if (!box) return;
+    try {
+      const res = await fetch('/api/health', { credentials: 'include' });
+      const h = await res.json();
+      const tools = h.toolchains || {};
+      box.innerHTML = `
+        <div class="section-header" style="margin-bottom:10px;">
+          <h3>System Health</h3>
+          <a class="btn btn-ghost btn-sm" href="/admin/health">Details</a>
+        </div>
+        <div class="mini-stats">
+          <span>Database: ${h.database?.connected ? 'Connected' : 'Error'}</span>
+          <span>Python: ${tools.python?.available ? 'Ready' : 'Missing'}</span>
+          <span>Java: ${tools.java?.available ? 'Ready' : 'Missing'}</span>
+          <span>C: ${tools.c?.available ? 'Ready' : 'Missing'}</span>
+          <span>C++: ${tools.cpp?.available ? 'Ready' : 'Missing'}</span>
+        </div>
+      `;
+    } catch {
+      box.innerHTML = '<div class="alert alert-danger">Unable to load system health.</div>';
+    }
+  }
+
+  function setStudentUrls() {
+    const codingUrl = window.location.origin + '/';
+  }
+
+  function showTab(name) {
+    document.querySelectorAll('.tab-section').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.section-tabs button').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('[data-nav-tab]').forEach(item => item.classList.remove('active'));
+    document.getElementById(`tab-${name}`).classList.add('active');
+    document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+    const navItem = document.querySelector(`[data-nav-tab="${name}"]`);
+    if (navItem) navItem.classList.add('active');
+    document.querySelector('.page-title').textContent = name === 'overview'
+      ? 'Unified Dashboard'
+      : name === 'coding'
+        ? 'Coding Exam'
+        : 'MCQ/Fill Exams';
+    if (name === 'overview') {
+      loadCodingData();
+      loadMcqExams();
+      loadHealthSummary();
+    }
+    if (name === 'mcq') loadMcqExams();
+    if (name === 'coding') loadCodingData();
+  }
+
+  async function loadCodingData() {
+    const [settingsRes, studentsRes, questionsRes] = await Promise.all([
+      fetch('/api/admin/settings', { credentials: 'include' }),
+      fetch('/api/admin/students', { credentials: 'include' }),
+      fetch('/api/admin/questions', { credentials: 'include' }),
+    ]);
+    const settings = await settingsRes.json();
+    const studentsData = await studentsRes.json();
+    const questionsData = await questionsRes.json();
+    const students = studentsData.students || [];
+    const questions = questionsData.questions || [];
+
+    document.getElementById('coding-duration').value = settings.durationMinutes || 60;
+    document.getElementById('coding-timeout').value = settings.executionTimeoutMs || 5000;
+    document.getElementById('coding-active').value = settings.isActive ? 'true' : 'false';
+    const allowed = settings.allowedLanguages || ['python', 'java', 'c', 'cpp'];
+    document.querySelectorAll('#coding-languages input').forEach(cb => cb.checked = allowed.includes(cb.value));
+
+    document.getElementById('coding-students').textContent = students.length;
+    document.getElementById('coding-submitted').textContent = students.filter(s => s.status === 'submitted' || s.status === 'auto_submitted').length;
+    document.getElementById('coding-status').innerHTML = settings.isActive
+      ? '<span class="badge badge-success">Active</span>'
+      : '<span class="badge badge-danger">Inactive</span>';
+    renderOverviewCodingCard(settings, questions.length);
+    renderCodingPageCard(settings, questions.length);
+  }
+
+  function renderOverviewCodingCard(settings, questionCount) {
+    const list = document.getElementById('overview-coding-list');
+    if (!list) return;
+    const url = window.location.origin + '/';
+    list.innerHTML = `
+      <div class="exam-card">
+        <div class="exam-card-head">
+          <div>
+            <div class="exam-title">Coding Exam</div>
+            <div class="exam-code">global-coding-exam</div>
+          </div>
+          <span class="badge ${settings.isActive ? 'badge-success' : 'badge-danger'}">${settings.isActive ? 'Active' : 'Inactive'}</span>
+        </div>
+        <div class="mini-stats">
+          <span>${settings.durationMinutes || 30} min</span>
+          <span>${(settings.allowedLanguages || []).length || 0} languages</span>
+          <span>${questionCount} questions</span>
+        </div>
+        <div class="url-box">
+          <span>${url}</span>
+          <button class="btn btn-ghost btn-sm" onclick="copyText('${url}')">Copy</button>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary btn-sm" onclick="showTab('coding')">Manage</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCodingPageCard(settings, questionCount) {
+    const list = document.getElementById('coding-page-card');
+    if (!list) return;
+    const url = window.location.origin + '/';
+    list.innerHTML = `
+      <div class="exam-card">
+        <div class="exam-card-head">
+          <div>
+            <div class="exam-title">Coding Exam</div>
+            <div class="exam-code">global-coding-exam</div>
+          </div>
+          <span class="badge ${settings.isActive ? 'badge-success' : 'badge-danger'}">${settings.isActive ? 'Active' : 'Inactive'}</span>
+        </div>
+        <div class="mini-stats">
+          <span>${settings.durationMinutes || 30} min</span>
+          <span>${(settings.allowedLanguages || []).length || 0} languages</span>
+          <span>${questionCount} questions</span>
+          <span>${settings.executionTimeoutMs || 5000} ms run limit</span>
+        </div>
+        <div class="url-box">
+          <span>${url}</span>
+          <button class="btn btn-ghost btn-sm" onclick="copyText('${url}')">Copy</button>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary btn-sm" onclick="showCodingSetup()">Settings</button>
+          <a class="btn btn-ghost btn-sm" href="/admin/questions">Questions</a>
+          <a class="btn btn-ghost btn-sm" href="/admin/results">Results</a>
+          <a class="btn btn-ghost btn-sm" href="/admin/monitor">Monitor</a>
+          <button class="btn btn-danger btn-sm" onclick="deleteCodingExam()">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function showCodingSetup() {
+    showTab('coding');
+    const panel = document.getElementById('coding-setup-panel');
+    if (panel) {
+      panel.classList.remove('hidden');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  async function saveCodingSettings() {
+    const allowedLanguages = Array.from(document.querySelectorAll('#coding-languages input:checked')).map(cb => cb.value);
+    const payload = {
+      durationMinutes: parseInt(document.getElementById('coding-duration').value, 10),
+      executionTimeoutMs: parseInt(document.getElementById('coding-timeout').value, 10),
+      isActive: document.getElementById('coding-active').value === 'true',
+      allowedLanguages: allowedLanguages.length ? allowedLanguages : ['python'],
+      maxViolationsBeforeSubmit: 2,
+    };
+    const res = await fetch('/api/admin/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    showMessage('coding-settings-msg', res.ok ? 'Settings saved.' : 'Failed to save settings.', res.ok);
+    loadCodingData();
+  }
+
+  async function deleteCodingExam() {
+    if (!confirm('Delete the coding exam?\n\nThis will remove all coding questions, coding students, coding submissions, and deactivate the coding exam. This cannot be undone.')) {
+      return;
+    }
+    const res = await fetch('/api/admin/exam/reset', {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alert(data.error || 'Failed to delete coding exam.');
+      return;
+    }
+    alert(data.message || 'Coding exam deleted.');
+    await loadCodingData();
+  }
+
+  async function loadMcqExams() {
+    const [dashboardRes, examsRes] = await Promise.all([
+      fetch(`${MCQ_API}/dashboard`, { credentials: 'include' }),
+      fetch(`${MCQ_API}/exams`, { credentials: 'include' }),
+    ]);
+    const dashboard = await dashboardRes.json();
+    const data = await examsRes.json();
+    mcqExams = data.exams || [];
+
+    const stats = dashboard.stats || {};
+    const totalExams = Number.isFinite(Number(stats.totalExams)) ? Number(stats.totalExams) : mcqExams.length;
+    const totalResponses = Number.isFinite(Number(stats.totalResponses))
+      ? Number(stats.totalResponses)
+      : mcqExams.reduce((sum, exam) => sum + Number(exam.responseCount || 0), 0);
+    const activeExams = Number.isFinite(Number(stats.activeExams))
+      ? Number(stats.activeExams)
+      : mcqExams.filter(exam => exam.isActive).length;
+
+    document.getElementById('mcq-exams-count').textContent = totalExams;
+    document.getElementById('mcq-responses-count').textContent = totalResponses;
+    document.getElementById('mcq-active-count').innerHTML = `<span class="badge badge-info">${activeExams} active</span>`;
+    renderOverviewMcqList();
+    renderMcqExams();
+  }
+
+  function renderOverviewMcqList() {
+    const list = document.getElementById('overview-mcq-list');
+    if (!list) return;
+    if (!mcqExams.length) {
+      list.innerHTML = '<div class="empty-inline">No MCQ/Fill exams yet. Create one to generate a student URL.</div>';
+      return;
+    }
+    const base = window.location.origin;
+    list.innerHTML = mcqExams.map(exam => {
+      const url = `${base}/mcq-exam/${exam.examCode}/login`;
+      return `
+        <div class="exam-card">
+          <div class="exam-card-head">
+            <div>
+              <div class="exam-title">${esc(exam.examTitle)}</div>
+              <div class="exam-code">${esc(exam.examCode)}</div>
+            </div>
+            <span class="badge ${exam.isActive ? 'badge-success' : 'badge-danger'}">${exam.isActive ? 'Active' : 'Inactive'}</span>
+          </div>
+          <div class="mini-stats">
+            <span>${exam.duration} min</span>
+            <span>${exam.questionCount || 0} questions</span>
+            <span>${exam.responseCount || 0} responses</span>
+          </div>
+          <div class="url-box">
+            <span>${url}</span>
+            <button class="btn btn-ghost btn-sm" onclick="copyText('${url}')">Copy</button>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-primary btn-sm" onclick="showTab('mcq')">Manage</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderMcqExams() {
+    const list = document.getElementById('mcq-list');
+    if (!mcqExams.length) {
+      list.innerHTML = '<div class="card text-muted" style="text-align:center;padding:32px;">No MCQ/Fill exams yet. Create one to get a student URL.</div>';
+      return;
+    }
+    const base = window.location.origin;
+    list.innerHTML = mcqExams.map(exam => {
+      const url = `${base}/mcq-exam/${exam.examCode}/login`;
+      return `
+        <div class="exam-card">
+          <div class="exam-card-head">
+            <div>
+              <div class="exam-title">${esc(exam.examTitle)}</div>
+              <div class="exam-code">${esc(exam.examCode)}</div>
+            </div>
+            <span class="badge ${exam.isActive ? 'badge-success' : 'badge-danger'}">${exam.isActive ? 'Active' : 'Inactive'}</span>
+          </div>
+          <div class="mini-stats">
+            <span>${exam.duration} min</span>
+            <span>${exam.questionCount || 0} questions</span>
+            <span>${exam.responseCount || 0} responses</span>
+          </div>
+          <div class="url-box">
+            <span>${url}</span>
+            <button class="btn btn-ghost btn-sm" onclick="copyText('${url}')">Copy</button>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-primary btn-sm" onclick="manageQuestions('${exam._id}')">Questions</button>
+            <button class="btn btn-ghost btn-sm" onclick="showResults('${exam._id}')">Results</button>
+            <button class="btn btn-ghost btn-sm" onclick="editMcqExam('${exam._id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteMcqExam('${exam._id}', '${escAttr(exam.examTitle)}')">Delete</button>
+          </div>
+          <div id="exam-panel-${exam._id}" style="margin-top:14px;"></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function showExamModal() {
+    document.getElementById('exam-id').value = '';
+    document.getElementById('exam-title').value = '';
+    document.getElementById('exam-code').value = '';
+    document.getElementById('exam-code').disabled = false;
+    document.getElementById('exam-duration').value = 30;
+    document.getElementById('exam-active').value = 'false';
+    document.getElementById('exam-instructions').value = '';
+    document.getElementById('exam-modal-title').textContent = 'Create MCQ/Fill Exam';
+    document.getElementById('exam-modal-msg').classList.add('hidden');
+    document.getElementById('exam-modal').classList.remove('hidden');
+  }
+
+  function editMcqExam(id) {
+    const exam = mcqExams.find(e => e._id === id);
+    if (!exam) return;
+    document.getElementById('exam-id').value = exam._id;
+    document.getElementById('exam-title').value = exam.examTitle;
+    document.getElementById('exam-code').value = exam.examCode;
+    document.getElementById('exam-code').disabled = true;
+    document.getElementById('exam-duration').value = exam.duration;
+    document.getElementById('exam-active').value = exam.isActive ? 'true' : 'false';
+    document.getElementById('exam-instructions').value = exam.instructions || '';
+    document.getElementById('exam-modal-title').textContent = 'Edit MCQ/Fill Exam';
+    document.getElementById('exam-modal-msg').classList.add('hidden');
+    document.getElementById('exam-modal').classList.remove('hidden');
+  }
+
+  function hideExamModal() {
+    document.getElementById('exam-modal').classList.add('hidden');
+  }
+
+  async function saveMcqExam() {
+    const id = document.getElementById('exam-id').value;
+    const payload = {
+      examTitle: document.getElementById('exam-title').value.trim(),
+      examCode: document.getElementById('exam-code').value.trim().toLowerCase().replace(/\s+/g, '-'),
+      duration: parseInt(document.getElementById('exam-duration').value, 10) || 30,
+      isActive: document.getElementById('exam-active').value === 'true',
+      instructions: document.getElementById('exam-instructions').value.trim(),
+    };
+    if (!payload.examTitle || (!id && !payload.examCode)) {
+      showMessage('exam-modal-msg', 'Exam title and code are required.', false);
+      return;
+    }
+    const res = await fetch(id ? `${MCQ_API}/exams/${id}` : `${MCQ_API}/exams`, {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(id ? { examTitle: payload.examTitle, duration: payload.duration, isActive: payload.isActive, instructions: payload.instructions } : payload),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      showMessage('exam-modal-msg', data.message || 'Failed to save exam.', false);
+      return;
+    }
+    hideExamModal();
+    await loadMcqExams();
+    showTab('mcq');
+  }
+
+  async function deleteMcqExam(id, title) {
+    if (!confirm(`Delete "${title}" and all related questions/results?`)) return;
+    await fetch(`${MCQ_API}/exams/${id}`, { method: 'DELETE', credentials: 'include' });
+    loadMcqExams();
+  }
+
+  async function manageQuestions(examId) {
+    const panel = document.getElementById(`exam-panel-${examId}`);
+    panel.innerHTML = '<div class="text-muted">Loading questions...</div>';
+    const res = await fetch(`${MCQ_API}/exams/${examId}/questions`, { credentials: 'include' });
+    const data = await res.json();
+    const questions = data.questions || [];
+    mcqQuestionsByExam[examId] = questions;
+    panel.innerHTML = `
+      <div class="section-header" style="margin:8px 0 10px;">
+        <h4 style="font-size:14px;">Questions</h4>
+        <button class="btn btn-primary btn-sm" onclick="showInlineQuestionForm('${examId}')">Add Question</button>
+      </div>
+      <div id="mcq-question-form-${examId}" class="card hidden" style="margin-bottom:14px;"></div>
+      ${questions.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Marks</th><th></th></tr></thead>
+            <tbody>
+              ${questions.map(q => `
+                <tr>
+                  <td>${q.order}</td>
+                  <td>${esc(q.questionText).slice(0, 80)}</td>
+                  <td>${q.questionType}</td>
+                  <td>${q.marks}</td>
+                  <td style="text-align:right;">
+                    <button class="btn btn-ghost btn-sm" onclick="showInlineQuestionForm('${examId}', '${q._id}')">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteQuestion('${examId}', '${q._id}')">Delete</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : '<div class="text-muted" style="font-size:13px;">No questions yet.</div>'}
+    `;
+  }
+
+  function showInlineQuestionForm(examId, questionId = '') {
+    const form = document.getElementById(`mcq-question-form-${examId}`);
+    const question = questionId ? (mcqQuestionsByExam[examId] || []).find(q => q._id === questionId) : null;
+    const type = question?.questionType || 'mcq';
+    const options = question?.options || [];
+    form.classList.remove('hidden');
+    form.innerHTML = `
+      <div class="section-header">
+        <h3>${question ? 'Edit Question' : 'Add New Question'}</h3>
+        <button class="btn btn-ghost btn-sm" onclick="cancelInlineQuestionForm('${examId}')">Cancel</button>
+      </div>
+      <input type="hidden" data-field="questionId" value="${question?._id || ''}">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Question Type</label>
+          <select class="input" data-field="type" onchange="toggleInlineQuestionType('${examId}')">
+            <option value="mcq" ${type === 'mcq' ? 'selected' : ''}>MCQ</option>
+            <option value="fill" ${type === 'fill' ? 'selected' : ''}>Fill in the Blank</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Order</label>
+          <input class="input" data-field="order" type="number" min="1" value="${question?.order || 1}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Question Text</label>
+        <textarea class="input" data-field="text" rows="3" placeholder="Enter the question...">${esc(question?.questionText || '')}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Question Image (optional)</label>
+        <input class="input" data-field="image" type="file" accept="image/*">
+      </div>
+      <div data-section="mcq-options">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Option A</label><input class="input" data-field="option0" value="${esc(options[0] || '')}"></div>
+          <div class="form-group"><label class="form-label">Option B</label><input class="input" data-field="option1" value="${esc(options[1] || '')}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Option C</label><input class="input" data-field="option2" value="${esc(options[2] || '')}"></div>
+          <div class="form-group"><label class="form-label">Option D</label><input class="input" data-field="option3" value="${esc(options[3] || '')}"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Correct Option</label>
+          <select class="input" data-field="correctMcq">
+            <option value="0" ${question?.correctAnswer === '0' ? 'selected' : ''}>Option A</option>
+            <option value="1" ${question?.correctAnswer === '1' ? 'selected' : ''}>Option B</option>
+            <option value="2" ${question?.correctAnswer === '2' ? 'selected' : ''}>Option C</option>
+            <option value="3" ${question?.correctAnswer === '3' ? 'selected' : ''}>Option D</option>
+          </select>
+        </div>
+      </div>
+      <div data-section="fill-answer" class="${type === 'fill' ? '' : 'hidden'}">
+        <div class="form-group">
+          <label class="form-label">Correct Answer</label>
+          <input class="input" data-field="correctFill" value="${type === 'fill' ? esc(question?.correctAnswer || '') : ''}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Marks</label>
+        <input class="input" data-field="marks" type="number" min="1" value="${question?.marks || 1}">
+      </div>
+      <div data-field="error" class="alert alert-danger hidden"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="saveInlineQuestion('${examId}')">Save Question</button>
+        <button class="btn btn-ghost" onclick="cancelInlineQuestionForm('${examId}')">Cancel</button>
+      </div>
+    `;
+    toggleInlineQuestionType(examId);
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function cancelInlineQuestionForm(examId) {
+    const form = document.getElementById(`mcq-question-form-${examId}`);
+    if (form) {
+      form.classList.add('hidden');
+      form.innerHTML = '';
+    }
+  }
+
+  function toggleInlineQuestionType(examId) {
+    const form = document.getElementById(`mcq-question-form-${examId}`);
+    if (!form) return;
+    const type = form.querySelector('[data-field="type"]')?.value || 'mcq';
+    form.querySelector('[data-section="mcq-options"]')?.classList.toggle('hidden', type !== 'mcq');
+    form.querySelector('[data-section="fill-answer"]')?.classList.toggle('hidden', type !== 'fill');
+  }
+
+  async function saveInlineQuestion(examId) {
+    const form = document.getElementById(`mcq-question-form-${examId}`);
+    const field = (name) => form.querySelector(`[data-field="${name}"]`);
+    const questionId = field('questionId').value;
+    const type = field('type').value;
+    const text = field('text').value.trim();
+    const error = field('error');
+    error.classList.add('hidden');
+
+    if (!text) {
+      error.textContent = 'Question text is required.';
+      error.classList.remove('hidden');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('questionText', text);
+    formData.append('questionType', type);
+    formData.append('marks', parseInt(field('marks').value, 10) || 1);
+    formData.append('order', parseInt(field('order').value, 10) || 1);
+
+    if (type === 'mcq') {
+      const options = [0,1,2,3].map(i => field(`option${i}`).value.trim()).filter(Boolean);
+      if (options.length < 2) {
+        error.textContent = 'At least two options are required.';
+        error.classList.remove('hidden');
+        return;
+      }
+      formData.append('options', JSON.stringify(options));
+      formData.append('correctAnswer', field('correctMcq').value);
+    } else {
+      const answer = field('correctFill').value.trim();
+      if (!answer) {
+        error.textContent = 'Correct answer is required.';
+        error.classList.remove('hidden');
+        return;
+      }
+      formData.append('options', JSON.stringify([]));
+      formData.append('correctAnswer', answer);
+    }
+
+    const image = field('image').files[0];
+    if (image) formData.append('questionImage', image);
+
+    const res = await fetch(questionId ? `${MCQ_API}/questions/${questionId}` : `${MCQ_API}/exams/${examId}/questions`, {
+      method: questionId ? 'PUT' : 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.success) {
+      error.textContent = data.message || 'Failed to save question.';
+      error.classList.remove('hidden');
+      return;
+    }
+    await manageQuestions(examId);
+    await loadMcqExams();
+  }
+
+  function showQuestionModal(examId) {
+    document.getElementById('question-id').value = '';
+    document.getElementById('question-exam-id').value = examId;
+    document.getElementById('question-type').value = 'mcq';
+    document.getElementById('question-text').value = '';
+    document.getElementById('question-order').value = 1;
+    document.getElementById('question-marks').value = 1;
+    document.getElementById('correct-mcq').value = '0';
+    document.getElementById('correct-fill').value = '';
+    document.getElementById('question-image').value = '';
+    [0,1,2,3].forEach(i => document.getElementById(`option-${i}`).value = '');
+    document.getElementById('question-modal-title').textContent = 'Add Question';
+    document.getElementById('question-modal-msg').classList.add('hidden');
+    toggleQuestionType();
+    document.getElementById('question-modal').classList.remove('hidden');
+  }
+
+  function editQuestion(examId, questionId) {
+    const question = (mcqQuestionsByExam[examId] || []).find(q => q._id === questionId);
+    if (!question) return;
+    showQuestionModal(examId);
+    document.getElementById('question-id').value = question._id;
+    document.getElementById('question-type').value = question.questionType;
+    document.getElementById('question-text').value = question.questionText;
+    document.getElementById('question-order').value = question.order;
+    document.getElementById('question-marks').value = question.marks;
+    if (question.questionType === 'mcq') {
+      (question.options || []).forEach((opt, i) => { if (i < 4) document.getElementById(`option-${i}`).value = opt; });
+      document.getElementById('correct-mcq').value = question.correctAnswer || '0';
+    } else {
+      document.getElementById('correct-fill').value = question.correctAnswer || '';
+    }
+    document.getElementById('question-modal-title').textContent = 'Edit Question';
+    toggleQuestionType();
+  }
+
+  function hideQuestionModal() {
+    document.getElementById('question-modal').classList.add('hidden');
+  }
+
+  function toggleQuestionType() {
+    const isMcq = document.getElementById('question-type').value === 'mcq';
+    document.getElementById('mcq-options').classList.toggle('hidden', !isMcq);
+    document.getElementById('fill-answer').classList.toggle('hidden', isMcq);
+  }
+
+  async function saveQuestion() {
+    const examId = document.getElementById('question-exam-id').value;
+    const questionId = document.getElementById('question-id').value;
+    const type = document.getElementById('question-type').value;
+    const text = document.getElementById('question-text').value.trim();
+    if (!text) {
+      showMessage('question-modal-msg', 'Question text is required.', false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('questionText', text);
+    formData.append('questionType', type);
+    formData.append('marks', parseInt(document.getElementById('question-marks').value, 10) || 1);
+    formData.append('order', parseInt(document.getElementById('question-order').value, 10) || 1);
+
+    if (type === 'mcq') {
+      const options = [0,1,2,3].map(i => document.getElementById(`option-${i}`).value.trim()).filter(Boolean);
+      if (options.length < 2) {
+        showMessage('question-modal-msg', 'At least two options are required.', false);
+        return;
+      }
+      formData.append('options', JSON.stringify(options));
+      formData.append('correctAnswer', document.getElementById('correct-mcq').value);
+    } else {
+      const answer = document.getElementById('correct-fill').value.trim();
+      if (!answer) {
+        showMessage('question-modal-msg', 'Correct answer is required.', false);
+        return;
+      }
+      formData.append('options', JSON.stringify([]));
+      formData.append('correctAnswer', answer);
+    }
+
+    const image = document.getElementById('question-image').files[0];
+    if (image) formData.append('questionImage', image);
+
+    const res = await fetch(questionId ? `${MCQ_API}/questions/${questionId}` : `${MCQ_API}/exams/${examId}/questions`, {
+      method: questionId ? 'PUT' : 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.success) {
+      showMessage('question-modal-msg', data.message || 'Failed to save question.', false);
+      return;
+    }
+    hideQuestionModal();
+    manageQuestions(examId);
+    loadMcqExams();
+  }
+
+  async function deleteQuestion(examId, questionId) {
+    if (!confirm('Delete this question?')) return;
+    await fetch(`${MCQ_API}/questions/${questionId}`, { method: 'DELETE', credentials: 'include' });
+    manageQuestions(examId);
+    loadMcqExams();
+  }
+
+  async function showResults(examId) {
+    currentResultsExamId = examId;
+    const panel = document.getElementById(`exam-panel-${examId}`);
+    panel.innerHTML = '<div class="text-muted">Loading results...</div>';
+    const res = await fetch(`${MCQ_API}/exams/${examId}/results`, { credentials: 'include' });
+    const data = await res.json();
+    const results = data.results || [];
+    panel.innerHTML = `
+      <div class="section-header" style="margin:8px 0 10px;">
+        <h4 style="font-size:14px;">Results</h4>
+        <button class="btn btn-ghost btn-sm" onclick="window.open('${MCQ_API}/exams/${examId}/export', '_blank')">Export</button>
+      </div>
+      ${results.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Rank</th><th>Roll</th><th>Name</th><th>Score</th><th>Percent</th><th></th></tr></thead>
+            <tbody>
+              ${results.map((r, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${esc(r.rollNumber)}</td>
+                  <td>${esc(r.fullName)}</td>
+                  <td>${r.totalMarks}/${r.maxMarks}</td>
+                  <td>${r.percentage}%</td>
+                  <td style="text-align:right;"><button class="btn btn-danger btn-sm" onclick="resetMcqResult('${examId}', '${r._id}')">Reset</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : '<div class="text-muted" style="font-size:13px;">No results yet.</div>'}
+    `;
+  }
+
+  async function resetMcqResult(examId, resultId) {
+    if (!confirm('Delete this response and allow the student to retake?')) return;
+    await fetch(`${MCQ_API}/results/${resultId}`, { method: 'DELETE', credentials: 'include' });
+    showResults(examId);
+    loadMcqExams();
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('URL copied.');
+    } catch {
+      prompt('Copy this URL:', text);
+    }
+  }
+
+  function showMessage(id, text, ok) {
+    const el = document.getElementById(id);
+    el.className = `alert ${ok ? 'alert-success' : 'alert-danger'}`;
+    el.textContent = text;
+  }
+
+  function esc(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function escAttr(value) {
+    return esc(value).replace(/'/g, '&#39;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = window.location.pathname.startsWith('/mcq-admin') ? '/mcq-admin' : '/admin';
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCQ/Fill Questions - Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <style>
+    .q-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:16px; overflow:hidden; }
+    .q-card-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:14px; background:var(--surface2); }
+    .q-card-body { padding:18px 20px; }
+    .add-q-form { display:none; }
+    .add-q-form.show { display:block; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .option-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .question-image { max-width:220px; max-height:140px; border:1px solid var(--border); border-radius:8px; margin-top:10px; object-fit:contain; }
+    textarea.input { resize:vertical; min-height:72px; }
+    @media(max-width:760px) { .form-row, .option-grid { grid-template-columns:1fr; } .q-card-header { align-items:flex-start; flex-direction:column; } }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo"><h2>Exam Admin</h2><p>Control Panel</p></div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+      <a href="/admin/questions" class="nav-item">Coding Questions</a>
+      <a href="/admin/mcq-questions" class="nav-item active">MCQ/Fill Questions</a>
+      <a href="/admin/results" class="nav-item">Coding Results</a>
+      <a href="/admin/mcq-results" class="nav-item">MCQ/Fill Results</a>
+      <a href="/admin/monitor" class="nav-item">Live Monitor</a>
+    </nav>
+    <div class="sidebar-footer"><button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button></div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <span class="page-title">Manage MCQ/Fill Questions</span>
+      <button class="btn btn-primary btn-sm" onclick="toggleAddForm()">+ Add Question</button>
+    </div>
+    <div class="admin-content">
+      <div class="card" style="margin-bottom:20px;">
+        <div class="form-row" style="align-items:end;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Exam</label>
+            <select id="exam-select" class="input" onchange="onExamChange()"></select>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-ghost" onclick="loadExams()">Refresh</button>
+            <a class="btn btn-primary" href="/admin/dashboard">Manage Exams</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card add-q-form" id="q-form-wrap" style="margin-bottom:24px;">
+        <h3 id="form-title" style="margin-bottom:20px;">Add New Question</h3>
+        <input type="hidden" id="edit-id">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Question Type</label>
+            <select id="f-type" class="input" onchange="toggleQuestionType()">
+              <option value="mcq">MCQ</option>
+              <option value="fill">Fill in the Blank</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Order</label>
+            <input type="number" id="f-order" class="input" min="1" value="1">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Question Text</label>
+          <textarea id="f-text" class="input" rows="3" placeholder="Enter the question..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Question Image (optional)</label>
+          <input type="file" id="f-image" class="input" accept="image/png,image/jpeg">
+        </div>
+
+        <div id="mcq-fields">
+          <div class="option-grid">
+            <div class="form-group"><label class="form-label">Option A</label><input id="f-opt-0" class="input"></div>
+            <div class="form-group"><label class="form-label">Option B</label><input id="f-opt-1" class="input"></div>
+            <div class="form-group"><label class="form-label">Option C</label><input id="f-opt-2" class="input"></div>
+            <div class="form-group"><label class="form-label">Option D</label><input id="f-opt-3" class="input"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Correct Option</label>
+            <select id="f-correct-mcq" class="input">
+              <option value="0">Option A</option>
+              <option value="1">Option B</option>
+              <option value="2">Option C</option>
+              <option value="3">Option D</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="fill-fields" class="hidden">
+          <div class="form-group">
+            <label class="form-label">Correct Answer</label>
+            <input id="f-correct-fill" class="input" placeholder="Expected answer">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Marks</label>
+          <input type="number" id="f-marks" class="input" min="1" value="1">
+        </div>
+
+        <div id="form-error" class="alert alert-danger hidden"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button class="btn btn-primary" onclick="saveQuestion()">Save Question</button>
+          <button class="btn btn-ghost" onclick="cancelForm()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="questions-list">
+        <div class="text-muted" style="text-align:center;padding:40px;">Loading questions...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = '/api/mcq-admin';
+  let exams = [];
+  let questions = [];
+  let selectedExamId = '';
+
+  checkAuth();
+
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/admin'; return; }
+    await loadExams();
+  }
+
+  async function loadExams() {
+    const res = await fetch(`${API}/exams`, { credentials: 'include' });
+    const data = await res.json();
+    exams = data.exams || [];
+    const select = document.getElementById('exam-select');
+    if (!exams.length) {
+      select.innerHTML = '<option value="">No MCQ/Fill exams found</option>';
+      document.getElementById('questions-list').innerHTML = '<div class="card text-muted" style="text-align:center;padding:40px;">Create an MCQ/Fill exam before adding questions.</div>';
+      return;
+    }
+    if (!selectedExamId || !exams.some(e => e._id === selectedExamId)) selectedExamId = exams[0]._id;
+    select.innerHTML = exams.map(e => `<option value="${e._id}" ${e._id === selectedExamId ? 'selected' : ''}>${escHtml(e.examTitle)} (${escHtml(e.examCode)})</option>`).join('');
+    await loadQuestions();
+  }
+
+  async function onExamChange() {
+    selectedExamId = document.getElementById('exam-select').value;
+    cancelForm();
+    await loadQuestions();
+  }
+
+  async function loadQuestions() {
+    if (!selectedExamId) return;
+    const res = await fetch(`${API}/exams/${selectedExamId}/questions`, { credentials: 'include' });
+    const data = await res.json();
+    questions = data.questions || [];
+    renderQuestions();
+  }
+
+  function renderQuestions() {
+    const list = document.getElementById('questions-list');
+    if (!questions.length) {
+      list.innerHTML = '<div class="card text-muted" style="text-align:center;padding:40px;">No questions yet. Add your first question.</div>';
+      return;
+    }
+    list.innerHTML = questions.map(q => `
+      <div class="q-card">
+        <div class="q-card-header">
+          <div>
+            <strong>Q${q.order}: ${escHtml(q.questionText).slice(0, 120)}${q.questionText.length > 120 ? '...' : ''}</strong>
+            <span class="badge badge-info" style="margin-left:8px;">${q.questionType === 'mcq' ? 'MCQ' : 'Fill'}</span>
+            <span class="badge badge-success" style="margin-left:4px;">${q.marks} mark${q.marks > 1 ? 's' : ''}</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="editQuestion('${q._id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteQuestion('${q._id}')">Delete</button>
+          </div>
+        </div>
+        <div class="q-card-body">
+          ${q.questionImage ? `<img class="question-image" src="${escAttr(q.questionImage)}" alt="">` : ''}
+          <div style="font-size:13px;color:var(--text-muted);margin-top:10px;">
+            ${q.questionType === 'mcq'
+              ? (q.options || []).map((opt, i) => `<span style="display:inline-block;margin-right:14px;">${String.fromCharCode(65 + i)}. ${escHtml(opt)}</span>`).join('')
+              : `Answer: ${escHtml(q.correctAnswer || '')}`}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function toggleAddForm() {
+    if (!selectedExamId) { alert('Create an exam first.'); return; }
+    const form = document.getElementById('q-form-wrap');
+    if (form.classList.contains('show')) cancelForm();
+    else {
+      clearForm();
+      form.classList.add('show');
+      document.getElementById('form-title').textContent = 'Add New Question';
+      form.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
+  function cancelForm() {
+    document.getElementById('q-form-wrap').classList.remove('show');
+    clearForm();
+  }
+
+  function clearForm() {
+    document.getElementById('edit-id').value = '';
+    document.getElementById('f-type').value = 'mcq';
+    document.getElementById('f-order').value = questions.length + 1 || 1;
+    document.getElementById('f-text').value = '';
+    document.getElementById('f-image').value = '';
+    document.getElementById('f-correct-mcq').value = '0';
+    document.getElementById('f-correct-fill').value = '';
+    document.getElementById('f-marks').value = '1';
+    [0,1,2,3].forEach(i => document.getElementById(`f-opt-${i}`).value = '');
+    document.getElementById('form-error').classList.add('hidden');
+    toggleQuestionType();
+  }
+
+  function toggleQuestionType() {
+    const isMcq = document.getElementById('f-type').value === 'mcq';
+    document.getElementById('mcq-fields').classList.toggle('hidden', !isMcq);
+    document.getElementById('fill-fields').classList.toggle('hidden', isMcq);
+  }
+
+  async function saveQuestion() {
+    const err = document.getElementById('form-error');
+    err.classList.add('hidden');
+    const type = document.getElementById('f-type').value;
+    const text = document.getElementById('f-text').value.trim();
+    if (!text) return showError('Question text is required.');
+
+    const formData = new FormData();
+    formData.append('questionText', text);
+    formData.append('questionType', type);
+    formData.append('order', parseInt(document.getElementById('f-order').value, 10) || 1);
+    formData.append('marks', parseInt(document.getElementById('f-marks').value, 10) || 1);
+
+    if (type === 'mcq') {
+      const options = [0,1,2,3].map(i => document.getElementById(`f-opt-${i}`).value.trim()).filter(Boolean);
+      if (options.length < 2) return showError('At least two options are required.');
+      formData.append('options', JSON.stringify(options));
+      formData.append('correctAnswer', document.getElementById('f-correct-mcq').value);
+    } else {
+      const answer = document.getElementById('f-correct-fill').value.trim();
+      if (!answer) return showError('Correct answer is required.');
+      formData.append('options', JSON.stringify([]));
+      formData.append('correctAnswer', answer);
+    }
+
+    const image = document.getElementById('f-image').files[0];
+    if (image) formData.append('questionImage', image);
+
+    const editId = document.getElementById('edit-id').value;
+    const url = editId ? `${API}/questions/${editId}` : `${API}/exams/${selectedExamId}/questions`;
+    const res = await fetch(url, {
+      method: editId ? 'PUT' : 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.success) return showError(data.message || 'Save failed.');
+    cancelForm();
+    await loadQuestions();
+    await loadExams();
+  }
+
+  function editQuestion(id) {
+    const q = questions.find(item => item._id === id);
+    if (!q) return;
+    const form = document.getElementById('q-form-wrap');
+    clearForm();
+    form.classList.add('show');
+    document.getElementById('form-title').textContent = 'Edit Question';
+    document.getElementById('edit-id').value = q._id;
+    document.getElementById('f-type').value = q.questionType;
+    document.getElementById('f-order').value = q.order || 1;
+    document.getElementById('f-text').value = q.questionText || '';
+    document.getElementById('f-marks').value = q.marks || 1;
+    if (q.questionType === 'mcq') {
+      (q.options || []).forEach((opt, i) => { if (i < 4) document.getElementById(`f-opt-${i}`).value = opt; });
+      document.getElementById('f-correct-mcq').value = q.correctAnswer || '0';
+    } else {
+      document.getElementById('f-correct-fill').value = q.correctAnswer || '';
+    }
+    toggleQuestionType();
+    form.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  async function deleteQuestion(id) {
+    if (!confirm('Delete this question? This cannot be undone.')) return;
+    await fetch(`${API}/questions/${id}`, { method: 'DELETE', credentials: 'include' });
+    await loadQuestions();
+    await loadExams();
+  }
+
+  function showError(message) {
+    const err = document.getElementById('form-error');
+    err.textContent = message;
+    err.classList.remove('hidden');
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function escAttr(str) {
+    return escHtml(str).replace(/'/g, '&#39;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/admin';
+  }
+</script>
+</body>
+</html>

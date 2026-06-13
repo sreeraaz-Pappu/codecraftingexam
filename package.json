@@ -1,0 +1,13 @@
+{
+  "name": "codecraftingexam",
+  "version": "1.0.0",
+  "description": "Combined secure coding and MCQ examination system",
+  "scripts": {
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend run dev",
+    "seed": "npm --prefix backend run seed"
+  },
+  "dependencies": {
+    "mongoose": "^9.2.2"
+  }
+}

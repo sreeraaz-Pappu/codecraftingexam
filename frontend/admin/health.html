@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Health - Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo"><h2>Exam Admin</h2><p>Control Panel</p></div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+      <a href="/admin/questions" class="nav-item">Coding Questions</a>
+      <a href="/admin/mcq-questions" class="nav-item">MCQ/Fill Questions</a>
+      <a href="/admin/results" class="nav-item">Coding Results</a>
+      <a href="/admin/mcq-results" class="nav-item">MCQ/Fill Results</a>
+      <a href="/admin/monitor" class="nav-item">Live Monitor</a>
+      <a href="/admin/health" class="nav-item active">System Health</a>
+    </nav>
+    <div class="sidebar-footer"><button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button></div>
+  </div>
+  <div class="admin-main">
+    <div class="admin-topbar"><span class="page-title">System Health</span><button class="btn btn-primary btn-sm" onclick="loadHealth()">Refresh</button></div>
+    <div class="admin-content">
+      <div id="health" class="stats-grid"></div>
+      <div class="card"><pre id="raw" class="mono" style="white-space:pre-wrap;color:var(--text-muted);"></pre></div>
+    </div>
+  </div>
+</div>
+<script>
+  checkAuth();
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/admin'; return; }
+    loadHealth();
+  }
+  function card(label, value, ok) {
+    return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="font-size:1.25rem;color:${ok ? 'var(--success)' : 'var(--danger)'}">${value}</div></div>`;
+  }
+  async function loadHealth() {
+    const res = await fetch('/api/health', { credentials: 'include' });
+    const h = await res.json();
+    const t = h.toolchains || {};
+    document.getElementById('health').innerHTML = [
+      card('Database', h.database?.connected ? 'Connected' : 'Error', h.database?.connected),
+      card('Python', t.python?.available ? 'Ready' : 'Missing', t.python?.available),
+      card('Java', t.java?.available ? 'Ready' : 'Missing', t.java?.available),
+      card('C Compiler', t.c?.available ? 'Ready' : 'Missing', t.c?.available),
+      card('C++ Compiler', t.cpp?.available ? 'Ready' : 'Missing', t.cpp?.available),
+      card('Coding Exam', h.exams?.coding?.is_active ? 'Active' : 'Inactive', !!h.exams?.coding?.is_active),
+    ].join('');
+    document.getElementById('raw').textContent = JSON.stringify(h, null, 2);
+  }
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/admin';
+  }
+</script>
+</body>
+</html>

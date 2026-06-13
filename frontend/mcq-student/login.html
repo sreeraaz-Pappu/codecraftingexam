@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#f6fbff; --surface:#ffffff; --surface2:#eef8f7; --border:#d7e7ea; --text:#12313f; --text-muted:#5f7883; --accent:#1d78d0; --success:#0f9f7a; --danger:#e5484d; --radius:8px; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:420px;box-shadow:0 18px 45px rgba(24,82,108,0.14)}
+    .logo{width:60px;height:60px;background:linear-gradient(135deg,#1d78d0,#0f9f7a);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin:0 auto 20px}
+    h1{text-align:center;font-size:1.4rem;margin-bottom:6px}
+    .subtitle{text-align:center;color:var(--text-muted);font-size:.85rem;margin-bottom:28px}
+    .exam-badge{background:rgba(29,120,208,.1);border:1px solid rgba(29,120,208,.24);color:var(--accent);padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:600;text-align:center;margin-bottom:22px}
+    label{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px}
+    input{width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s;margin-bottom:16px}
+    input:focus{border-color:var(--accent)}
+    input::placeholder{color:var(--text-muted)}
+    .btn{width:100%;padding:13px;background:var(--accent);color:white;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:4px}
+    .btn:hover{background:#155fa8;transform:translateY(-1px)}
+    .btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .alert{padding:12px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;margin-bottom:16px;display:none}
+    .alert-error{background:rgba(245,101,101,.1);border:1px solid rgba(245,101,101,.3);color:var(--danger)}
+    .alert.show{display:block}
+    .not-found{text-align:center;padding:20px 0}
+    .not-found .icon{font-size:3rem;margin-bottom:12px}
+    .not-found p{color:var(--text-muted);font-size:.9rem}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">📋</div>
+  <h1 id="exam-title">Online Examination</h1>
+  <p class="subtitle" id="exam-subtitle">Enter your details to begin</p>
+
+  <div id="not-found-msg" class="not-found" style="display:none">
+    <div class="icon">❌</div>
+    <p>Exam not found or this link is invalid.<br>Please check the URL or contact your administrator.</p>
+  </div>
+
+  <div id="login-form">
+    <div id="exam-badge" class="exam-badge" style="display:none"></div>
+    <div id="alert" class="alert alert-error"></div>
+
+    <label>Roll Number</label>
+    <input type="text" id="roll" placeholder="e.g. 23691A1G6" autocomplete="off" spellcheck="false">
+
+    <label>Full Name</label>
+    <input type="text" id="name" placeholder="Enter your full name" autocomplete="off">
+
+    <button class="btn" id="login-btn" onclick="login()">🚀 Start Exam</button>
+  </div>
+</div>
+
+<script>
+  // Get examCode from URL path: /mcq-exam/:examCode/login.html
+  const pathParts = window.location.pathname.split('/');
+  const examCode = pathParts[2] || '';
+
+  if (!examCode) {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('not-found-msg').style.display = 'block';
+  } else {
+    document.getElementById('exam-badge').style.display = 'block';
+    document.getElementById('exam-badge').textContent = `Exam Code: ${examCode}`;
+  }
+
+  document.getElementById('roll').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+  document.getElementById('name').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+
+  function showError(msg) {
+    const a = document.getElementById('alert');
+    a.textContent = msg;
+    a.classList.add('show');
+  }
+  function hideError() { document.getElementById('alert').classList.remove('show'); }
+
+  async function login() {
+    hideError();
+    const roll = document.getElementById('roll').value.trim();
+    const name = document.getElementById('name').value.trim();
+
+    if (!roll) { showError('Please enter your roll number.'); return; }
+    if (!name) { showError('Please enter your full name.'); return; }
+
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Verifying...';
+
+    try {
+      const res = await fetch(`/api/mcq-student/${examCode}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rollNumber: roll, fullName: name })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        showError(data.message);
+        btn.disabled = false;
+        btn.textContent = '🚀 Start Exam';
+        return;
+      }
+
+      sessionStorage.setItem('examToken', data.token);
+      sessionStorage.setItem('examSettings', JSON.stringify(data.examSettings));
+      sessionStorage.setItem('studentInfo', JSON.stringify(data.student));
+      sessionStorage.setItem('examCode', examCode);
+
+      window.location.href = `/mcq-exam/${examCode}/instructions.html`;
+    } catch (err) {
+      showError('Connection error. Please try again.');
+      btn.disabled = false;
+      btn.textContent = '🚀 Start Exam';
+    }
+  }
+</script>
+</body>
+</html>

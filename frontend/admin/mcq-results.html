@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCQ/Fill Results - Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <style>
+    .form-row { display:grid; grid-template-columns:1fr auto; gap:16px; align-items:end; }
+    tr.clickable { cursor:pointer; }
+    tr.clickable:hover td { background:rgba(79,110,247,0.06); }
+    .answer-list { display:grid; gap:8px; font-size:13px; color:var(--text-muted); }
+    .answer-item { padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
+    @media(max-width:760px) { .form-row { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo"><h2>Exam Admin</h2><p>Control Panel</p></div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+      <a href="/admin/questions" class="nav-item">Coding Questions</a>
+      <a href="/admin/mcq-questions" class="nav-item">MCQ/Fill Questions</a>
+      <a href="/admin/results" class="nav-item">Coding Results</a>
+      <a href="/admin/mcq-results" class="nav-item active">MCQ/Fill Results</a>
+      <a href="/admin/monitor" class="nav-item">Live Monitor</a>
+    </nav>
+    <div class="sidebar-footer"><button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button></div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <span class="page-title">MCQ/Fill Results</span>
+      <button class="btn btn-primary btn-sm" onclick="exportResults()">Export Results (.xlsx)</button>
+    </div>
+    <div class="admin-content">
+      <div class="card" style="margin-bottom:20px;">
+        <div class="form-row">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Exam</label>
+            <select id="exam-select" class="input" onchange="onExamChange()"></select>
+          </div>
+          <input type="text" class="input" id="search" placeholder="Search by roll/name..." style="width:220px;" oninput="filterResults()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <h3>Responses <span class="text-muted" id="result-count" style="font-weight:400;font-size:13px;"></span></h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Roll No.</th>
+                <th>Name</th>
+                <th>Score</th>
+                <th>Percent</th>
+                <th>Type</th>
+                <th>Violations</th>
+                <th>Submitted</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="results-body">
+              <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="answers-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:760px;">
+    <h2 id="modal-title">Answers</h2>
+    <div id="modal-body" class="answer-list" style="margin-top:14px;"></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('answers-modal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = '/api/mcq-admin';
+  let exams = [];
+  let allResults = [];
+  let selectedExamId = '';
+
+  checkAuth();
+
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/admin'; return; }
+    await loadExams();
+  }
+
+  async function loadExams() {
+    const res = await fetch(`${API}/exams`, { credentials: 'include' });
+    const data = await res.json();
+    exams = data.exams || [];
+    const select = document.getElementById('exam-select');
+    if (!exams.length) {
+      select.innerHTML = '<option value="">No MCQ/Fill exams found</option>';
+      renderResults([]);
+      return;
+    }
+    if (!selectedExamId || !exams.some(e => e._id === selectedExamId)) selectedExamId = exams[0]._id;
+    select.innerHTML = exams.map(e => `<option value="${e._id}" ${e._id === selectedExamId ? 'selected' : ''}>${escHtml(e.examTitle)} (${escHtml(e.examCode)})</option>`).join('');
+    await loadResults();
+  }
+
+  async function onExamChange() {
+    selectedExamId = document.getElementById('exam-select').value;
+    await loadResults();
+  }
+
+  async function loadResults() {
+    if (!selectedExamId) return renderResults([]);
+    const res = await fetch(`${API}/exams/${selectedExamId}/results`, { credentials: 'include' });
+    const data = await res.json();
+    allResults = data.results || [];
+    renderResults(allResults);
+  }
+
+  function renderResults(results) {
+    document.getElementById('result-count').textContent = `(${results.length} responses)`;
+    const tbody = document.getElementById('results-body');
+    if (!results.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">No responses yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = results.map((r, i) => `
+      <tr>
+        <td style="color:var(--text-muted)">${i + 1}</td>
+        <td class="mono" style="font-size:12px;">${escHtml(r.rollNumber)}</td>
+        <td>${escHtml(r.fullName)}</td>
+        <td><strong>${r.totalMarks}</strong><span class="text-muted">/${r.maxMarks}</span></td>
+        <td><span class="${r.percentage >= 50 ? 'text-success' : 'text-danger'}">${r.percentage}%</span></td>
+        <td>${escHtml(r.submissionType)}</td>
+        <td class="text-muted">Tabs: ${r.tabSwitchCount || 0} / FS: ${r.fullscreenExitCount || 0}</td>
+        <td style="font-size:11px;color:var(--text-muted);">${r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '-'}</td>
+        <td style="text-align:right;">
+          <button class="btn btn-ghost btn-sm" onclick="viewAnswers('${r._id}')">Answers</button>
+          <button class="btn btn-danger btn-sm" onclick="resetResult('${r._id}', '${escAttr(r.rollNumber)}')">Reset</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function viewAnswers(id) {
+    const result = allResults.find(r => r._id === id);
+    if (!result) return;
+    document.getElementById('modal-title').textContent = `${result.rollNumber} - ${result.fullName}`;
+    document.getElementById('modal-body').innerHTML = (result.answers || []).map((a, i) => `
+      <div class="answer-item">
+        <div><strong>Q${i + 1}:</strong> ${escHtml(a.questionText)}</div>
+        <div>Answer: <span class="${a.isCorrect ? 'text-success' : 'text-danger'}">${escHtml(a.givenAnswer || '(blank)')}</span></div>
+        <div>Marks: ${a.marksAwarded || 0}</div>
+      </div>
+    `).join('') || '<div class="text-muted">No answers recorded.</div>';
+    document.getElementById('answers-modal').classList.remove('hidden');
+  }
+
+  async function resetResult(id, roll) {
+    if (!confirm(`Delete response for ${roll} and allow retake?`)) return;
+    const res = await fetch(`${API}/results/${id}`, { method: 'DELETE', credentials: 'include' });
+    const data = await res.json();
+    if (!data.success) return alert(data.message || 'Reset failed.');
+    await loadResults();
+  }
+
+  function exportResults() {
+    if (!selectedExamId) return;
+    window.open(`${API}/exams/${selectedExamId}/export`, '_blank');
+  }
+
+  function filterResults() {
+    const q = document.getElementById('search').value.toLowerCase();
+    renderResults(allResults.filter(r =>
+      String(r.rollNumber || '').toLowerCase().includes(q) ||
+      String(r.fullName || '').toLowerCase().includes(q)
+    ));
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function escAttr(str) {
+    return escHtml(str).replace(/'/g, '&#39;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/admin';
+  }
+</script>
+</body>
+</html>

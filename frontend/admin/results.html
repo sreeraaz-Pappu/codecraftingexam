@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Results — Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <style>
+    .score-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 4px; }
+    .score-fill { height: 100%; border-radius: 2px; background: var(--accent); }
+    .code-viewer {
+      background: #1e1f2e; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; font-family: var(--mono); font-size: 12px;
+      white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto;
+      line-height: 1.7; color: #c5c9e0;
+    }
+    .expand-row { display: none; }
+    .expand-row.show { display: table-row; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: rgba(79,110,247,0.06); }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo"><h2>Exam Admin</h2><p>Control Panel</p></div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <a href="/admin/questions" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Coding Questions</a>
+      <a href="/admin/mcq-questions" class="nav-item">MCQ/Fill Questions</a>
+      <a href="/admin/results" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Results</a>
+      <a href="/admin/mcq-results" class="nav-item">MCQ/Fill Results</a>
+      <a href="/admin/monitor" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Live Monitor</a>
+      <a href="/admin/health" class="nav-item">System Health</a>
+    </nav>
+    <div class="sidebar-footer"><button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button></div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <span class="page-title">Student Results</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="window.open('/api/admin/export/logins','_blank')">Export Logins</button>
+        <button class="btn btn-primary btn-sm" onclick="window.open('/api/admin/export/results','_blank')">Export Results (.xlsx)</button>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="card">
+        <div class="section-header">
+          <h3>All Submissions <span class="text-muted" id="result-count" style="font-weight:400;font-size:13px;"></span></h3>
+          <input type="text" class="input" id="search" placeholder="Search by roll/name..." style="width:200px;" oninput="filterResults()">
+        </div>
+        <div class="table-wrap">
+          <table id="results-table">
+            <thead>
+              <tr id="results-head-row"></tr>
+            </thead>
+            <tbody id="results-body">
+              <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Code Modal -->
+<div id="code-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:680px;">
+    <h2 id="modal-title">Student Code</h2>
+    <p id="modal-meta" style="margin-bottom:12px;"></p>
+    <div id="modal-code" class="code-viewer">Loading...</div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('code-modal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let allResults = [];
+  checkAuth();
+
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/admin'; return; }
+    loadResults();
+  }
+
+  async function loadResults() {
+    const res = await fetch('/api/admin/results', { credentials: 'include' });
+    const data = await res.json();
+    allResults = data.results;
+    renderResults(allResults);
+  }
+
+  function renderResults(results) {
+    document.getElementById('result-count').textContent = `(${results.length} students)`;
+    const tbody = document.getElementById('results-body');
+
+    if (!results.length) {
+      document.getElementById('results-head-row').innerHTML = '<th>#</th><th>Roll No.</th><th>Name</th><th>Status</th><th>Total</th><th>Violations</th><th>Submitted</th>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No submissions yet.</td></tr>';
+      return;
+    }
+    const orders = Array.from(new Set(results.flatMap(r => r.submissions.map(s => s.questionOrder)))).sort((a, b) => a - b);
+    document.getElementById('results-head-row').innerHTML = `
+      <th>#</th><th>Roll No.</th><th>Name</th><th>Status</th>
+      ${orders.map(order => `<th>Q${order}</th>`).join('')}
+      <th>Total</th><th>Violations</th><th>Submitted</th>
+    `;
+
+    tbody.innerHTML = results.map((r, i) => {
+      const statusBadge = r.status === 'submitted' ? 'badge-success' :
+        r.status === 'auto_submitted' ? 'badge-warning' :
+        r.status === 'in_exam' ? 'badge-info' : 'badge-danger';
+
+      return `
+        <tr class="clickable" onclick="toggleDetail('${r._id}')">
+          <td style="color:var(--text-muted)">${i+1}</td>
+          <td class="mono" style="font-size:12px;">${escHtml(r.rollNumber)}</td>
+          <td>${escHtml(r.fullName)}</td>
+          <td><span class="badge ${statusBadge}">${r.status}</span></td>
+          ${orders.map(order => `<td>${scoreCell(r.submissions.find(s => s.questionOrder === order))}</td>`).join('')}
+          <td><strong>${r.totalScore}</strong></td>
+          <td><span class="${r.totalViolations > 0 ? 'text-danger' : 'text-muted'}">${r.totalViolations}</span></td>
+          <td style="font-size:11px;color:var(--text-muted);">${r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}</td>
+        </tr>
+        <tr class="expand-row" id="detail-${r._id}">
+          <td colspan="${orders.length + 7}" style="padding:0;background:var(--surface2);">
+            <div style="padding:16px;">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+                <div><span class="text-muted" style="font-size:12px;">IP Address:</span> <span style="font-size:12px;">${r.ipAddress || '—'}</span></div>
+                <div><span class="text-muted" style="font-size:12px;">Login Time:</span> <span style="font-size:12px;">${r.loginTime ? new Date(r.loginTime).toLocaleString() : '—'}</span></div>
+                <div><span class="text-muted" style="font-size:12px;">Auto Submit:</span> <span style="font-size:12px;">${r.autoSubmitted ? 'Yes' : 'No'}</span></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                ${r.submissions.map(s => `
+                  <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();viewCode('${r._id}','${s.questionOrder}','${escHtml(r.rollNumber)}',${JSON.stringify(s).replace(/"/g,'&quot;')})">
+                    View Q${s.questionOrder} Code (${s.testCasesPassed}/${s.totalTestCases} passed)
+                  </button>
+                `).join('')}
+                <button class="btn btn-sm" onclick="event.stopPropagation();resetStudent('${r._id}','${escHtml(r.fullName)}','${escHtml(r.rollNumber)}')"
+                  style="background:rgba(245,101,101,0.15);color:#fc8181;border:1px solid rgba(245,101,101,0.3);margin-left:auto;">
+                  🔄 Reset & Allow Re-attempt
+                </button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function scoreCell(sub) {
+    if (!sub) return '<span class="text-muted">—</span>';
+    return `<span title="${sub.testCasesPassed}/${sub.totalTestCases} test cases">${sub.score}/${sub.maxScore}</span>`;
+  }
+
+  function toggleDetail(id) {
+    const row = document.getElementById(`detail-${id}`);
+    row.classList.toggle('show');
+  }
+
+  async function viewCode(studentId, qOrder, rollNum, subData) {
+    const modal = document.getElementById('code-modal');
+    const code = document.getElementById('modal-code');
+    document.getElementById('modal-title').textContent = `${rollNum} — Q${qOrder}: ${escHtml(subData.questionTitle || '')}`;
+    document.getElementById('modal-meta').textContent = `Score: ${subData.score}/${subData.maxScore} · Test Cases: ${subData.testCasesPassed}/${subData.totalTestCases} · Language: ${subData.language || 'python'}`;
+
+    modal.classList.remove('hidden');
+    code.textContent = 'Loading...';
+
+    // We need to fetch the actual code from the server
+    // Build a quick lookup - find question _id through submissions endpoint
+    try {
+      const res = await fetch(`/api/admin/students`, { credentials: 'include' });
+      const { students } = await res.json();
+      const student = students.find(s => s.rollNumber === rollNum);
+      if (student) {
+        // Get results with code
+        const rRes = await fetch(`/api/admin/results`, { credentials: 'include' });
+        const { results } = await rRes.json();
+        const rStudent = results.find(r => r.rollNumber === rollNum);
+        if (rStudent) {
+          const sub = rStudent.submissions.find(s => s.questionOrder === parseInt(qOrder));
+          if (sub) {
+            // Fetch actual code
+            const cRes = await fetch(`/api/admin/results/${student._id}/code/${sub.questionId}`, { credentials: 'include' });
+            if (cRes.ok) {
+              const data = await cRes.json();
+              code.textContent = data.code || 'No code submitted';
+              return;
+            }
+          }
+        }
+      }
+      code.textContent = 'Code not available';
+    } catch (e) {
+      code.textContent = 'Error loading code';
+    }
+  }
+
+  async function resetStudent(studentId, fullName, rollNumber) {
+    if (!confirm(`Reset ${fullName} (${rollNumber})?\n\nThis will:\n• Delete all their submissions\n• Reset their attempt status\n• Allow them to login and take the exam again\n\nThis cannot be undone!`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/students/${studentId}/reset`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ ${data.message}`);
+        loadResults(); // Refresh the table
+      } else {
+        alert('❌ Reset failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('❌ Network error. Please try again.');
+    }
+  }
+
+  function filterResults() {
+    const q = document.getElementById('search').value.toLowerCase();
+    renderResults(allResults.filter(r =>
+      r.rollNumber.toLowerCase().includes(q) || r.fullName.toLowerCase().includes(q)
+    ));
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/admin';
+  }
+</script>
+</body>
+</html>

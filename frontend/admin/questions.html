@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Questions — Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <style>
+    .q-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:16px; overflow:hidden; }
+    .q-card-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; background:var(--surface2); }
+    .q-card-body { padding:20px; }
+    .tc-row { display:grid; grid-template-columns:1fr 1fr auto auto; gap:10px; align-items:start; margin-bottom:10px; }
+    .tc-row .input { font-family:var(--mono); font-size:12px; }
+    textarea.input { resize:vertical; min-height:60px; }
+    .add-q-form { display:none; }
+    .add-q-form.show { display:block; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media(max-width:700px) { .form-row { grid-template-columns:1fr; } .tc-row { grid-template-columns:1fr 1fr; } }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo"><h2>Exam Admin</h2><p>Control Panel</p></div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <a href="/admin/questions" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Coding Questions</a>
+      <a href="/admin/mcq-questions" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 9h6v6H9z"/><path d="M9 4v3M15 4v3M9 17v3M15 17v3"/></svg>MCQ/Fill Questions</a>
+      <a href="/admin/results" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Results</a>
+      <a href="/admin/mcq-results" class="nav-item">MCQ/Fill Results</a>
+      <a href="/admin/monitor" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Live Monitor</a>
+    </nav>
+    <div class="sidebar-footer"><button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button></div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <span class="page-title">Manage Questions</span>
+      <button class="btn btn-primary btn-sm" onclick="toggleAddForm()">+ Add Question</button>
+    </div>
+    <div class="admin-content">
+
+      <!-- Add/Edit Form -->
+      <div class="card add-q-form" id="q-form-wrap" style="margin-bottom:24px;">
+        <h3 id="form-title" style="margin-bottom:20px;">Add New Question</h3>
+        <input type="hidden" id="edit-id">
+
+        <div class="form-row" style="margin-bottom:16px;">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Order (1, 2, 3...)</label>
+            <input type="number" id="f-order" class="input" min="1" max="20">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Title</label>
+            <input type="text" id="f-title" class="input" placeholder="Question title">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Problem Description</label>
+          <textarea id="f-desc" class="input" rows="4" placeholder="Describe the problem..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Input Format</label>
+            <textarea id="f-input" class="input" rows="2"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Output Format</label>
+            <textarea id="f-output" class="input" rows="2"></textarea>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Constraints</label>
+            <textarea id="f-constraints" class="input" rows="2"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sample Input</label>
+            <textarea id="f-sample-in" class="input" rows="2" style="font-family:var(--mono)"></textarea>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Sample Output</label>
+          <input type="text" id="f-sample-out" class="input" style="font-family:var(--mono)">
+        </div>
+
+        <div style="margin-top:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <label class="form-label" style="margin:0;">Hidden Test Cases</label>
+            <button class="btn btn-ghost btn-sm" onclick="addTestCase()">+ Add Test Case</button>
+          </div>
+          <div id="tc-container"></div>
+        </div>
+
+        <div id="form-error" class="alert alert-danger hidden" style="margin-top:12px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button class="btn btn-primary" onclick="saveQuestion()">Save Question</button>
+          <button class="btn btn-ghost" onclick="cancelForm()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Questions List -->
+      <div id="questions-list">
+        <div class="text-muted" style="text-align:center;padding:40px;">Loading questions...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let questions = [];
+  checkAuth();
+
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/admin'; return; }
+    loadQuestions();
+  }
+
+  async function loadQuestions() {
+    const res = await fetch('/api/admin/questions', { credentials: 'include' });
+    const data = await res.json();
+    questions = data.questions;
+    renderQuestions();
+  }
+
+  function renderQuestions() {
+    const list = document.getElementById('questions-list');
+    if (!questions.length) {
+      list.innerHTML = '<div class="card text-muted" style="text-align:center;padding:40px;">No questions yet. Add your first question.</div>';
+      return;
+    }
+    list.innerHTML = questions.map(q => `
+      <div class="q-card">
+        <div class="q-card-header">
+          <div>
+            <strong>Q${q.order}: ${escHtml(q.title)}</strong>
+            <span class="badge badge-info" style="margin-left:8px;">${q.testCases.length} test cases</span>
+            <span class="badge badge-success" style="margin-left:4px;">${q.totalMarks} marks</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm edit-btn" data-id="${q._id}">Edit</button>
+            <button class="btn btn-danger btn-sm delete-btn" data-id="${q._id}">Delete</button>
+          </div>
+        </div>
+        <div class="q-card-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">${escHtml(q.description.substring(0, 200))}${q.description.length > 200 ? '...' : ''}</p>
+          <div style="font-size:12px;color:var(--text-dim);">
+            ${q.testCases.map((tc, i) => `<span style="margin-right:10px;">TC${i+1}: ${tc.marks} marks</span>`).join('')}
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Attach click events using event delegation
+    list.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => editQuestion(btn.dataset.id));
+    });
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => deleteQuestion(btn.dataset.id));
+    });
+  }
+
+  function toggleAddForm() {
+    const form = document.getElementById('q-form-wrap');
+    if (form.classList.contains('show')) cancelForm();
+    else {
+      form.classList.add('show');
+      document.getElementById('edit-id').value = '';
+      document.getElementById('form-title').textContent = 'Add New Question';
+      document.getElementById('tc-container').innerHTML = '';
+      addTestCase(); addTestCase(); addTestCase();
+      form.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
+  function cancelForm() {
+    document.getElementById('q-form-wrap').classList.remove('show');
+    clearForm();
+  }
+
+  function clearForm() {
+    ['f-order','f-title','f-desc','f-input','f-output','f-constraints','f-sample-in','f-sample-out'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('tc-container').innerHTML = '';
+    document.getElementById('edit-id').value = '';
+    document.getElementById('form-error').classList.add('hidden');
+  }
+
+  let tcCount = 0;
+  function addTestCase(data = {}) {
+    const id = tcCount++;
+    const div = document.createElement('div');
+    div.className = 'tc-row';
+    div.id = `tc-${id}`;
+    div.innerHTML = `
+      <div>
+        <label class="form-label" style="font-size:11px;">Input</label>
+        <textarea class="input tc-input" rows="2" placeholder="Test input...">${escHtml(data.input || '')}</textarea>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:11px;">Expected Output</label>
+        <textarea class="input tc-expected" rows="2" placeholder="Expected output...">${escHtml(data.expectedOutput || '')}</textarea>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:11px;">Marks</label>
+        <input type="number" class="input tc-marks" value="${data.marks || 4}" min="1" style="width:70px;">
+      </div>
+      <div style="padding-top:20px;">
+        <button class="btn btn-danger btn-sm" onclick="document.getElementById('tc-${id}').remove()">✕</button>
+      </div>
+    `;
+    document.getElementById('tc-container').appendChild(div);
+  }
+
+  async function saveQuestion() {
+    const errDiv = document.getElementById('form-error');
+    errDiv.classList.add('hidden');
+
+    const testCaseRows = document.querySelectorAll('.tc-row');
+    const testCases = [];
+    let valid = true;
+    testCaseRows.forEach(row => {
+      const input = row.querySelector('.tc-input').value;
+      const expected = row.querySelector('.tc-expected').value;
+      const marks = parseInt(row.querySelector('.tc-marks').value);
+      if (!input || !expected || !marks) { valid = false; return; }
+      testCases.push({ input, expectedOutput: expected, marks });
+    });
+
+    if (!valid) { errDiv.textContent = 'All test case fields are required.'; errDiv.classList.remove('hidden'); return; }
+    if (!testCases.length) { errDiv.textContent = 'Add at least one test case.'; errDiv.classList.remove('hidden'); return; }
+
+    const payload = {
+      order: parseInt(document.getElementById('f-order').value),
+      title: document.getElementById('f-title').value.trim(),
+      description: document.getElementById('f-desc').value.trim(),
+      inputFormat: document.getElementById('f-input').value.trim(),
+      outputFormat: document.getElementById('f-output').value.trim(),
+      constraints: document.getElementById('f-constraints').value.trim(),
+      sampleInput: document.getElementById('f-sample-in').value.trim(),
+      sampleOutput: document.getElementById('f-sample-out').value.trim(),
+      testCases,
+    };
+
+    if (!payload.title || !payload.description || !payload.inputFormat || !payload.outputFormat || !payload.order) {
+      errDiv.textContent = 'Title, description, input/output format, and order are required.';
+      errDiv.classList.remove('hidden'); return;
+    }
+
+    const editId = document.getElementById('edit-id').value;
+    const url = editId ? `/api/admin/questions/${editId}` : '/api/admin/questions';
+    const method = editId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload), credentials: 'include',
+    });
+
+    if (res.ok) {
+      cancelForm();
+      loadQuestions();
+    } else {
+      const data = await res.json();
+      errDiv.textContent = data.error || 'Save failed';
+      errDiv.classList.remove('hidden');
+    }
+  }
+
+  async function editQuestion(id) {
+    const res = await fetch(`/api/admin/questions/${id}`, { credentials: 'include' });
+    const q = await res.json();
+    const form = document.getElementById('q-form-wrap');
+    form.classList.add('show');
+    document.getElementById('form-title').textContent = 'Edit Question';
+    document.getElementById('edit-id').value = q._id;
+    document.getElementById('f-order').value = q.order;
+    document.getElementById('f-title').value = q.title;
+    document.getElementById('f-desc').value = q.description;
+    document.getElementById('f-input').value = q.inputFormat;
+    document.getElementById('f-output').value = q.outputFormat;
+    document.getElementById('f-constraints').value = q.constraints;
+    document.getElementById('f-sample-in').value = q.sampleInput || '';
+    document.getElementById('f-sample-out').value = q.sampleOutput || '';
+    document.getElementById('tc-container').innerHTML = '';
+    q.testCases.forEach(tc => addTestCase(tc));
+    form.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  async function deleteQuestion(id) {
+    if (!confirm('Delete this question? This cannot be undone.')) return;
+    await fetch(`/api/admin/questions/${id}`, { method: 'DELETE', credentials: 'include' });
+    loadQuestions();
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/admin';
+  }
+</script>
+</body>
+</html>

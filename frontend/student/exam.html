@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Examination</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+
+    #header {
+      height: 54px; background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+      flex-shrink: 0; z-index: 100;
+    }
+    #header-left { display: flex; align-items: center; gap: 14px; }
+    .exam-title { font-weight: 600; font-size: 15px; }
+    .student-info { font-size: 12px; color: var(--text-muted); }
+
+    #timer {
+      display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 20px;
+      font-family: var(--mono); font-weight: 600; font-size: 15px;
+    }
+    #timer.warning { border-color: var(--warning); color: var(--warning); }
+    #timer.danger { border-color: var(--danger); color: var(--danger); animation: pulse-timer 1s infinite; }
+    @keyframes pulse-timer { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    #timer-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+    #timer.warning #timer-dot { background: var(--warning); }
+    #timer.danger #timer-dot { background: var(--danger); }
+
+    #main-layout { display: flex; height: calc(100vh - 54px); overflow: hidden; }
+
+    /* LEFT: Question Panel */
+    #question-panel {
+      width: 40%; min-width: 320px; max-width: 560px;
+      display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden;
+    }
+    #question-tabs {
+      display: flex; background: var(--surface2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .q-tab {
+      flex: 1; padding: 11px 8px; font-size: 13px; font-weight: 500;
+      text-align: center; cursor: pointer; color: var(--text-muted);
+      border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .q-tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface); }
+    .q-tab.done { color: var(--success) !important; }
+    .q-tab.done.active { border-bottom-color: var(--success); }
+    .q-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.03); }
+    #question-content { flex: 1; overflow-y: auto; padding: 24px; }
+    .q-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+    .q-section { margin-bottom: 18px; }
+    .q-section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px; }
+    .q-body { font-size: 14px; line-height: 1.7; color: var(--text); }
+    .code-block {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px 14px; font-family: var(--mono); font-size: 13px;
+      white-space: pre-wrap; word-break: break-all; color: var(--success); margin-top: 6px;
+    }
+    .marks-badge {
+      display: inline-block; background: rgba(79,110,247,0.12); color: var(--accent);
+      border: 1px solid rgba(79,110,247,0.25); padding: 3px 10px;
+      border-radius: 20px; font-size: 12px; font-weight: 500; margin-left: 10px;
+    }
+
+    /* RIGHT: Editor Panel */
+    #editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #editor-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; background: var(--surface2); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; gap: 10px;
+    }
+    #editor-wrap { flex: 1; overflow: hidden; position: relative; }
+    .CodeMirror { height: 100% !important; font-family: var(--mono) !important; font-size: 13.5px !important; line-height: 1.6 !important; }
+    .CodeMirror-scroll { height: 100%; }
+
+    /* Output Panel */
+    #output-panel {
+      height: 240px; flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      display: flex; flex-direction: column;
+    }
+    #output-tabs {
+      display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .out-tab {
+      padding: 7px 18px; font-size: 12px; font-weight: 600;
+      color: var(--text-muted); cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .out-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .out-tab:hover { color: var(--text); }
+
+    #output-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
+
+    /* Run output — 3 columns */
+    #run-output { display: none; }
+    .compiler-error-panel {
+      display: none;
+      margin-bottom: 10px;
+      border: 1px solid rgba(229, 62, 62, 0.25);
+      border-left: 4px solid var(--danger);
+      border-radius: var(--radius);
+      background: #fff7f7;
+      overflow: hidden;
+    }
+    .compiler-error-title {
+      padding: 8px 12px;
+      color: var(--danger);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(229, 62, 62, 0.16);
+    }
+    .compiler-error-body {
+      min-height: 92px;
+      max-height: 180px;
+      overflow: auto;
+      padding: 12px;
+      color: #7f1d1d;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+    .run-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;
+    }
+    .run-col-label {
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+      letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .run-col-value {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px 10px;
+      font-family: var(--mono); font-size: 12px; color: var(--text);
+      white-space: pre-wrap; min-height: 38px;
+    }
+    .run-verdict {
+      display: inline-block; padding: 5px 14px; border-radius: 20px;
+      font-size: 13px; font-weight: 600; margin-top: 4px;
+    }
+    .run-verdict.pass { background: rgba(72,187,120,0.15); color: var(--success); border: 1px solid rgba(72,187,120,0.3); }
+    .run-verdict.fail { background: rgba(245,101,101,0.15); color: var(--danger); border: 1px solid rgba(245,101,101,0.3); }
+
+    /* Submit output — dots */
+    #submit-output { display: none; }
+    .tc-summary-line { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+    .tc-dots { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .tc-dot {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .tc-dot.pass { background: rgba(72,187,120,0.2); color: var(--success); border: 1px solid rgba(72,187,120,0.4); }
+    .tc-dot.fail { background: rgba(245,101,101,0.2); color: var(--danger); border: 1px solid rgba(245,101,101,0.4); }
+    .tc-dot.err  { background: rgba(236,201,75,0.2); color: var(--warning); border: 1px solid rgba(236,201,75,0.4); }
+    .tc-message { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Placeholder */
+    #output-placeholder { font-size: 13px; color: var(--text-muted); padding: 4px 0; }
+
+    /* Submit Bar */
+    #submit-bar {
+      height: 54px; background: var(--surface); border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+      flex-shrink: 0;
+    }
+    #progress-info { font-size: 13px; color: var(--text-muted); }
+
+    /* Overlays */
+    #fullscreen-overlay, #submitted-overlay {
+      position: fixed; inset: 0; z-index: 9998;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+    }
+    .overlay-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 40px; max-width: 460px; width: 90%;
+      text-align: center; box-shadow: var(--shadow);
+    }
+    .overlay-icon { font-size: 2.5rem; margin-bottom: 16px; }
+    .overlay-box h2 { margin-bottom: 10px; }
+    .overlay-box p { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; line-height: 1.6; }
+    #submitted-overlay { display: none; }
+    #submitted-overlay.show { display: flex; }
+
+    #violation-banner {
+      position: fixed; top: 70px; left: 50%; transform: translateX(-50%) translateY(-20px);
+      background: #1a1a1a; color: #fefcbf;
+      border: 1px solid var(--warning); border-left: 4px solid var(--warning);
+      padding: 12px 24px; font-size: 13px; font-weight: 600;
+      border-radius: 8px; z-index: 9000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+      white-space: nowrap;
+    }
+    #violation-banner.show {
+      opacity: 1; transform: translateX(-50%) translateY(0);
+    }
+
+    .spinner-sm {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 5px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="page-loader">
+    <div class="spinner" style="width:36px;height:36px;border-width:3px;"></div>
+  </div>
+
+  <!-- Fullscreen Prompt -->
+  <div id="fullscreen-overlay">
+    <div class="overlay-box">
+      <div class="overlay-icon">🖥️</div>
+      <h2>Enter Fullscreen Mode</h2>
+      <p>This exam requires fullscreen mode. Click the button below to enter fullscreen and begin the exam. Exiting fullscreen during the exam is a violation.</p>
+      <button class="btn btn-primary btn-lg" onclick="enterFullscreen()">Enter Fullscreen & Begin</button>
+    </div>
+  </div>
+
+  <!-- Violation Banner -->
+  <div id="violation-banner"></div>
+
+  <!-- Header -->
+  <div id="header">
+    <div id="header-left">
+      <div class="exam-title">Online Examination</div>
+      <div class="student-info" id="student-info">Loading...</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div id="timer">
+        <div id="timer-dot"></div>
+        <span id="timer-display">--:--</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="confirmFinalSubmit()">⏹ Submit Exam</button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div id="main-layout">
+    <!-- Question Panel -->
+    <div id="question-panel">
+      <div id="question-tabs"></div>
+      <div id="question-content">
+        <div class="text-muted" style="text-align:center;padding-top:40px;">Loading questions...</div>
+      </div>
+    </div>
+
+    <!-- Editor Panel -->
+    <div id="editor-panel">
+      <div id="editor-toolbar">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <select id="lang-select" class="input" style="width:auto;padding:4px 10px;font-size:13px;font-weight:600;" onchange="changeLanguage(this.value)">
+            <option value="python">Python 3</option>
+            <option value="java">Java</option>
+            <option value="c">C</option>
+            <option value="cpp">C++</option>
+          </select>
+          <span style="color:var(--text-muted);font-size:12px;">Code Editor</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="clearEditor()">Clear</button>
+          <button class="btn btn-sm" id="run-btn" onclick="runCode()"
+            style="background:rgba(72,187,120,0.15);color:var(--success);border:1px solid rgba(72,187,120,0.3);">
+            ▶ Run
+          </button>
+          <button class="btn btn-primary btn-sm" id="submit-btn" onclick="submitCode()">
+            ✔ Submit
+          </button>
+        </div>
+      </div>
+
+      <div id="editor-wrap">
+        <textarea id="code-editor"></textarea>
+      </div>
+
+      <!-- Output Panel -->
+      <div id="output-panel">
+        <div id="output-tabs">
+          <div class="out-tab active" id="tab-run" onclick="showOutTab('run')">▶ Run Output</div>
+          <div class="out-tab" id="tab-submit" onclick="showOutTab('submit')">✔ Submit Results</div>
+        </div>
+        <div id="output-body">
+          <div id="output-placeholder">
+            Click <strong style="color:var(--success);">▶ Run</strong> to test with the sample input, or
+            <strong style="color:var(--accent);">✔ Submit</strong> to check all hidden test cases.
+          </div>
+
+          <!-- Run output -->
+          <div id="run-output">
+            <div class="compiler-error-panel" id="ro-error-panel">
+              <div class="compiler-error-title">Compiler / Runtime Error</div>
+              <div class="compiler-error-body" id="ro-error">—</div>
+            </div>
+            <div class="run-grid">
+              <div>
+                <div class="run-col-label">Input (Sample)</div>
+                <div class="run-col-value" id="ro-input">—</div>
+              </div>
+              <div>
+                <div class="run-col-label">Expected Output</div>
+                <div class="run-col-value" id="ro-expected">—</div>
+              </div>
+              <div>
+                <div class="run-col-label">Your Output</div>
+                <div class="run-col-value" id="ro-yours">—</div>
+              </div>
+            </div>
+            <div id="ro-verdict"></div>
+          </div>
+
+          <!-- Submit output -->
+          <div id="submit-output">
+            <div class="tc-summary-line" id="so-count">—</div>
+            <div class="tc-dots" id="so-dots"></div>
+            <div class="tc-message" id="so-msg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit Bar -->
+  <div id="submit-bar">
+    <div id="progress-info">Questions submitted: <span id="submitted-count">0</span> / <span id="total-count">3</span></div>
+    <div style="font-size:12px;color:var(--text-muted);">Submit each question individually, then click "Submit Exam" when done.</div>
+  </div>
+
+  <!-- Submitted Overlay -->
+  <div id="submitted-overlay">
+    <div class="overlay-box">
+      <div class="overlay-icon" style="font-size:4rem;">✅</div>
+      <h2>Exam Submitted</h2>
+      <p style="font-size:16px;color:var(--text);font-weight:500;">Your response has been recorded.</p>
+      <p>Thank you for completing the examination. You may now close this window.</p>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+
+  <script>
+  // ═══════════════════════════════════════════════════════
+  //  STATE
+  // ═══════════════════════════════════════════════════════
+  let questions = [];
+  let currentQ = 0;
+  let submittedQuestions = new Set(); // Set of question _ids that have been submitted
+  let savedCode = {};
+  let timerInterval = null;
+  let remainingMs = 0;
+  let examLanguage = 'python';
+  let isSubmitted = false;
+  let editor = null;
+  let violations = { fullscreen_exit: 0, tab_switch: 0 };
+
+  const LANG_META = {
+    python:     { label: 'Python 3',   mode: 'python' },
+    java:       { label: 'Java',       mode: 'text/x-java' },
+    c:          { label: 'C',          mode: 'text/x-csrc' },
+    cpp:        { label: 'C++',        mode: 'text/x-c++src' },
+  };
+
+  // ═══════════════════════════════════════════════════════
+  //  INIT
+  // ═══════════════════════════════════════════════════════
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const res = await fetch('/api/auth/student/status', { credentials: 'include' });
+      if (!res.ok) { window.location.href = '/'; return; }
+      const data = await res.json();
+      if (data.status === 'submitted' || data.status === 'auto_submitted') { showSubmittedOverlay(); return; }
+      document.getElementById('student-info').textContent = `${data.rollNumber} — ${data.fullName}`;
+    } catch (e) { window.location.href = '/'; return; }
+
+    editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+      theme: 'dracula', mode: 'python', lineNumbers: true,
+      matchBrackets: true, autoCloseBrackets: true,
+      indentUnit: 4, tabSize: 4, indentWithTabs: false,
+      extraKeys: { Tab: cm => cm.replaceSelection('    ') },
+      lineWrapping: false,
+    });
+
+    await loadSettings();
+    await loadQuestions();
+    setupAntiCheat();
+
+    document.getElementById('page-loader').classList.add('fade-out');
+    setTimeout(() => document.getElementById('page-loader').remove(), 400);
+
+    if (!document.fullscreenElement) {
+      document.getElementById('fullscreen-overlay').style.display = 'flex';
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════
+  //  SETTINGS & QUESTIONS
+  // ═══════════════════════════════════════════════════════
+  async function loadSettings() {
+    try {
+      const res = await fetch('/api/exam/settings', { credentials: 'include' });
+      const data = await res.json();
+      remainingMs = data.remainingMs;
+      const allowed = data.languages || Object.keys(LANG_META);
+      const sel = document.getElementById('lang-select');
+      sel.innerHTML = allowed.map(l => `<option value="${l}">${LANG_META[l]?.label || l}</option>`).join('');
+      examLanguage = allowed[0] || 'python';
+      sel.value = examLanguage;
+      editor.setOption('mode', LANG_META[examLanguage]?.mode || 'python');
+      startTimer();
+    } catch (e) { console.error('Settings error', e); }
+  }
+
+  async function loadQuestions() {
+    try {
+      const res = await fetch('/api/exam/questions', { credentials: 'include' });
+      if (!res.ok) { window.location.href = '/'; return; }
+      const data = await res.json();
+      questions = data.questions;
+      document.getElementById('total-count').textContent = questions.length;
+      renderTabs();
+      showQuestion(0);
+    } catch (e) { console.error('Failed to load questions', e); }
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  QUESTION UI
+  // ═══════════════════════════════════════════════════════
+  function renderTabs() {
+    const tabs = document.getElementById('question-tabs');
+    tabs.innerHTML = '';
+    questions.forEach((q, i) => {
+      const tab = document.createElement('div');
+      const isDone = submittedQuestions.has(q._id);
+      tab.className = 'q-tab' + (i === 0 ? ' active' : '') + (isDone ? ' done' : '');
+      tab.id = `tab-${i}`;
+      tab.textContent = isDone ? `Q${q.order} ✓` : `Q${q.order}`;
+      tab.onclick = () => switchQuestion(i);
+      tabs.appendChild(tab);
+    });
+  }
+
+  function switchQuestion(idx) {
+    if (idx === currentQ) return;
+    savedCode[`${questions[currentQ]._id}_${examLanguage}`] = editor.getValue();
+    currentQ = idx;
+    document.querySelectorAll('.q-tab').forEach((t, i) => {
+      t.classList.toggle('active', i === idx);
+    });
+    showQuestion(idx);
+    const saved = savedCode[`${questions[idx]._id}_${examLanguage}`];
+    editor.setValue(saved || getStarterCode());
+    editor.clearHistory();
+    resetOutputPanel();
+    updateSubmitBtn();
+  }
+
+  function showQuestion(idx) {
+    const q = questions[idx];
+    if (!q) return;
+    const content = document.getElementById('question-content');
+    content.innerHTML = `
+      <div class="q-title">Q${q.order}. ${escHtml(q.title)}<span class="marks-badge">${q.totalMarks} marks</span></div>
+      <div class="q-section">
+        <div class="q-section-title">Problem Description</div>
+        <div class="q-body">${escHtml(q.description)}</div>
+      </div>
+      <div class="q-section">
+        <div class="q-section-title">Input Format</div>
+        <div class="q-body">${escHtml(q.inputFormat)}</div>
+      </div>
+      <div class="q-section">
+        <div class="q-section-title">Output Format</div>
+        <div class="q-body">${escHtml(q.outputFormat)}</div>
+      </div>
+      <div class="q-section">
+        <div class="q-section-title">Constraints</div>
+        <div class="q-body">${escHtml(q.constraints)}</div>
+      </div>
+      ${q.sampleInput ? `
+      <div class="q-section">
+        <div class="q-section-title">Sample Input</div>
+        <div class="code-block">${escHtml(q.sampleInput)}</div>
+      </div>
+      <div class="q-section">
+        <div class="q-section-title">Sample Output</div>
+        <div class="code-block">${escHtml(q.sampleOutput)}</div>
+      </div>` : ''}
+      <div class="q-section">
+        <div class="q-section-title">Test Cases</div>
+        <div class="q-body">${q.testCaseCount} hidden test cases · ${q.totalMarks} total marks</div>
+      </div>
+    `;
+    if (!savedCode[`${q._id}_${examLanguage}`]) {
+      editor.setValue(getStarterCode());
+      editor.clearHistory();
+    }
+    updateSubmitBtn();
+  }
+
+  function updateSubmitBtn() {
+    const q = questions[currentQ];
+    if (!q) return;
+    const btn = document.getElementById('submit-btn');
+    const done = submittedQuestions.has(q._id);
+    btn.disabled = done;
+    btn.textContent = done ? '✔ Submitted' : '✔ Submit';
+    btn.style.opacity = done ? '0.6' : '1';
+  }
+
+  function getStarterCode() {
+    const starters = {
+      python: `# Python 3 Solution\n# Use input() to read, print() to output\n\n`,
+      java: `import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your solution here\n        \n    }\n}\n`,
+      c: `#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n    // Use scanf() to read, printf() to output\n    \n    return 0;\n}\n`,
+      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    // Write your C++ solution here\n    \n    return 0;\n}\n`,
+    };
+    return starters[examLanguage] || starters.python;
+  }
+
+  function changeLanguage(lang) {
+    if (questions[currentQ]) {
+      savedCode[`${questions[currentQ]._id}_${examLanguage}`] = editor.getValue();
+    }
+    examLanguage = lang;
+    editor.setOption('mode', LANG_META[lang]?.mode || 'python');
+    if (questions[currentQ]) {
+      const saved = savedCode[`${questions[currentQ]._id}_${lang}`];
+      editor.setValue(saved || getStarterCode());
+    }
+    resetOutputPanel();
+  }
+
+  function clearEditor() {
+    if (confirm('Clear the editor?')) editor.setValue(getStarterCode());
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  OUTPUT PANEL
+  // ═══════════════════════════════════════════════════════
+  function showOutTab(which) {
+    document.getElementById('tab-run').className = 'out-tab' + (which === 'run' ? ' active' : '');
+    document.getElementById('tab-submit').className = 'out-tab' + (which === 'submit' ? ' active' : '');
+    document.getElementById('run-output').style.display = which === 'run' ? 'block' : 'none';
+    document.getElementById('submit-output').style.display = which === 'submit' ? 'block' : 'none';
+    document.getElementById('output-placeholder').style.display = 'none';
+  }
+
+  function resetOutputPanel() {
+    document.getElementById('run-output').style.display = 'none';
+    document.getElementById('submit-output').style.display = 'none';
+    document.getElementById('output-placeholder').style.display = 'block';
+    document.getElementById('tab-run').className = 'out-tab active';
+    document.getElementById('tab-submit').className = 'out-tab';
+    document.getElementById('ro-error-panel').style.display = 'none';
+    document.getElementById('ro-error').textContent = '';
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  RUN (sample input only)
+  // ═══════════════════════════════════════════════════════
+  async function runCode() {
+    const q = questions[currentQ];
+    if (!q) return;
+    const code = editor.getValue().trim();
+    if (!code) { alert('Please write your code first.'); return; }
+
+    const btn = document.getElementById('run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm"></span>Running...';
+
+    showOutTab('run');
+    document.getElementById('ro-input').textContent = q.sampleInput || '';
+    document.getElementById('ro-expected').textContent = q.sampleOutput || '';
+    document.getElementById('ro-yours').textContent = '...';
+    document.getElementById('ro-error-panel').style.display = 'none';
+    document.getElementById('ro-error').textContent = '';
+    document.getElementById('ro-verdict').textContent = '';
+
+    try {
+      const res = await fetch('/api/exam/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, language: examLanguage, questionId: q._id }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.status === 401) {
+        const msg = data.error || 'Session expired. Please login again.';
+        document.getElementById('ro-yours').textContent = '(no stdout)';
+        document.getElementById('ro-error-panel').style.display = 'block';
+        document.getElementById('ro-error').textContent = msg;
+        setTimeout(() => window.location.href = '/', 1200);
+        return;
+      }
+
+      const stdout = (data.output || '').trim();
+      const errText = (data.error || '').trim();
+      document.getElementById('ro-yours').textContent = stdout || '(no stdout)';
+      if (errText) {
+        document.getElementById('ro-error-panel').style.display = 'block';
+        document.getElementById('ro-error').textContent = errText;
+      }
+
+      const expected = (q.sampleOutput || '').trim();
+      const pass = (expected === stdout) && !data.error && !data.timedOut;
+
+      const v = document.getElementById('ro-verdict');
+      if (data.timedOut) {
+        v.className = 'run-verdict fail';
+        v.textContent = '⏱ Time Limit Exceeded';
+      } else if (data.error && !pass) {
+        v.className = 'run-verdict fail';
+        v.textContent = '✗ Runtime Error';
+      } else if (pass) {
+        v.className = 'run-verdict pass';
+        v.textContent = '✓ Correct! Output matches sample.';
+      } else {
+        v.className = 'run-verdict fail';
+        v.textContent = '✗ Wrong Answer — output does not match.';
+      }
+    } catch (e) {
+      document.getElementById('ro-yours').textContent = '(no stdout)';
+      document.getElementById('ro-error-panel').style.display = 'block';
+      document.getElementById('ro-error').textContent = 'Network error: ' + e.message;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '▶ Run';
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  SUBMIT (hidden test cases)
+  // ═══════════════════════════════════════════════════════
+  async function submitCode() {
+    const q = questions[currentQ];
+    if (!q || submittedQuestions.has(q._id)) return;
+
+    const code = editor.getValue().trim();
+    if (!code) { alert('Please write your solution before submitting.'); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm"></span>Submitting...';
+
+    showOutTab('submit');
+    document.getElementById('so-count').textContent = 'Running hidden test cases...';
+    document.getElementById('so-dots').innerHTML = '';
+    document.getElementById('so-msg').textContent = '';
+
+    try {
+      const res = await fetch(`/api/exam/submit/${q._id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, language: examLanguage }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.status === 401) {
+        document.getElementById('so-count').textContent = 'Session expired';
+        document.getElementById('so-msg').textContent = data.error || 'Please login again.';
+        setTimeout(() => window.location.href = '/', 1200);
+        return;
+      }
+
+      if (!data.success) {
+        document.getElementById('so-count').textContent = '✗ Submission error';
+        document.getElementById('so-msg').textContent = data.error || 'Please try again.';
+        btn.disabled = false;
+        btn.textContent = '✔ Submit';
+        return;
+      }
+
+      const passed = data.passed;
+      const total  = data.total;
+      document.getElementById('so-count').textContent = `${passed} / ${total} test cases passed`;
+
+      const dotsEl = document.getElementById('so-dots');
+      dotsEl.innerHTML = '';
+      (data.results || []).forEach((r, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'tc-dot ' + (r.passed ? 'pass' : (r.error && r.error !== 'Wrong Answer' ? 'err' : 'fail'));
+        dot.title = `TC${i+1}: ${r.passed ? 'Passed' : (r.error || 'Wrong Answer')}`;
+        dot.textContent = r.passed ? '✓' : '✗';
+        dotsEl.appendChild(dot);
+      });
+
+      document.getElementById('so-msg').textContent =
+        passed === total ? '🎉 All test cases passed!' :
+        passed === 0     ? 'No test cases passed. Review your solution.' :
+                           `${passed}/${total} passed. Keep improving!`;
+
+      // Mark as submitted
+      submittedQuestions.add(q._id);
+      savedCode[`${q._id}_${examLanguage}`] = code;
+      renderTabs();
+      updateProgress();
+      updateSubmitBtn();
+
+    } catch (e) {
+      document.getElementById('so-count').textContent = 'Network error.';
+      btn.disabled = false;
+      btn.textContent = '✔ Submit';
+    }
+  }
+
+  function updateProgress() {
+    document.getElementById('submitted-count').textContent = submittedQuestions.size;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  FINAL SUBMIT
+  // ═══════════════════════════════════════════════════════
+  function confirmFinalSubmit() {
+    const unsubmitted = questions.length - submittedQuestions.size;
+    const msg = unsubmitted > 0
+      ? `You have ${unsubmitted} question(s) not yet submitted.\n\nAre you sure you want to end the exam? This cannot be undone.`
+      : 'Are you sure you want to submit the exam? This cannot be undone.';
+    if (confirm(msg)) finalSubmit(false);
+  }
+
+  async function finalSubmit(auto, reason) {
+    if (isSubmitted) return;
+    isSubmitted = true;
+    clearInterval(timerInterval);
+    if (questions[currentQ]) {
+      savedCode[`${questions[currentQ]._id}_${examLanguage}`] = editor.getValue();
+    }
+    try {
+      await fetch('/api/exam/final-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoSubmit: auto, reason }),
+        credentials: 'include',
+      });
+    } catch (e) {}
+    showSubmittedOverlay();
+  }
+
+  function showSubmittedOverlay() {
+    isSubmitted = true;
+    document.getElementById('submitted-overlay').classList.add('show');
+    try { document.exitFullscreen(); } catch(e) {}
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  TIMER
+  // ═══════════════════════════════════════════════════════
+  function startTimer() {
+    timerInterval = setInterval(() => {
+      if (isSubmitted) return;
+      remainingMs -= 1000;
+      if (remainingMs <= 0) {
+        remainingMs = 0;
+        displayTimer(0);
+        finalSubmit(true, 'time_expired');
+        return;
+      }
+      displayTimer(remainingMs);
+    }, 1000);
+    displayTimer(remainingMs);
+  }
+
+  function displayTimer(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    document.getElementById('timer-display').textContent =
+      h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    const el = document.getElementById('timer');
+    el.classList.remove('warning', 'danger');
+    if (ms <= 5 * 60 * 1000) el.classList.add('danger');
+    else if (ms <= 15 * 60 * 1000) el.classList.add('warning');
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  // ═══════════════════════════════════════════════════════
+  //  ANTI-CHEAT
+  // ═══════════════════════════════════════════════════════
+  function setupAntiCheat() {
+    document.addEventListener('contextmenu', e => { e.preventDefault(); logViolation('right_click', 'Right click'); });
+    document.addEventListener('keydown', e => {
+      const key = e.key.toLowerCase();
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (e.key === 'F12') { e.preventDefault(); logViolation('keyboard_shortcut', 'F12'); return; }
+      if (ctrl && e.shiftKey && ['i','j','c'].includes(key)) { e.preventDefault(); logViolation('keyboard_shortcut', `Ctrl+Shift+${key}`); return; }
+      if (ctrl && key === 'u') { e.preventDefault(); logViolation('keyboard_shortcut', 'Ctrl+U'); return; }
+      if (ctrl && key === 'c') { e.preventDefault(); logViolation('copy_paste', 'Ctrl+C'); return; }
+      if (ctrl && key === 'v') { e.preventDefault(); logViolation('copy_paste', 'Ctrl+V'); return; }
+      if (ctrl && key === 'x') { e.preventDefault(); logViolation('copy_paste', 'Ctrl+X'); return; }
+      if (ctrl && key === 'r') { e.preventDefault(); return; }
+      if (e.key === 'F5') { e.preventDefault(); return; }
+      if (ctrl && ['l','t','n','w'].includes(key)) { e.preventDefault(); return; }
+    });
+    document.addEventListener('copy',  e => e.preventDefault());
+    document.addEventListener('paste', e => e.preventDefault());
+    document.addEventListener('cut',   e => e.preventDefault());
+    document.addEventListener('selectstart', e => {
+      if (!e.target.closest('.CodeMirror, #question-content, input, textarea')) e.preventDefault();
+    });
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && !isSubmitted) logViolation('tab_switch', 'Tab switch detected');
+    });
+    window.addEventListener('blur', () => {
+      if (!isSubmitted && document.fullscreenElement) logViolation('tab_switch', 'Window blur');
+    });
+    history.pushState(null, '', location.href);
+    window.addEventListener('popstate', () => history.pushState(null, '', location.href));
+    document.addEventListener('dragstart', e => e.preventDefault());
+    document.addEventListener('drop',      e => e.preventDefault());
+  }
+
+  function handleFullscreenChange() {
+    if (!document.fullscreenElement && !isSubmitted) {
+      document.getElementById('fullscreen-overlay').style.display = 'flex';
+      logViolation('fullscreen_exit', 'Exited fullscreen');
+    } else {
+      document.getElementById('fullscreen-overlay').style.display = 'none';
+    }
+  }
+
+  async function logViolation(type, details) {
+    if (isSubmitted) return;
+    try {
+      const res = await fetch('/api/exam/violation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, details }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.shouldAutoSubmit) {
+        showViolationBanner('🚨 FINAL VIOLATION — Auto-submitting exam...');
+        setTimeout(() => finalSubmit(true, `auto_${type}`), 2000);
+      } else if (data.warningMessage) {
+        showViolationBanner('⚠️ ' + data.warningMessage);
+      }
+    } catch (e) {}
+  }
+
+  function showViolationBanner(msg) {
+    const b = document.getElementById('violation-banner');
+    b.textContent = msg;
+    b.classList.add('show');
+    setTimeout(() => b.classList.remove('show'), 6000);
+  }
+
+  function enterFullscreen() {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    document.getElementById('fullscreen-overlay').style.display = 'none';
+  }
+  </script>
+</body>
+</html>

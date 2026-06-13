@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Monitor — Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <style>
+    .monitor-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
+    }
+    .student-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; transition: border-color 0.3s;
+    }
+    .student-card.active { border-color: var(--success); }
+    .student-card.submitted { border-color: var(--accent); }
+    .student-card.auto_submitted { border-color: var(--warning); }
+    .student-card.violations { border-color: var(--danger); }
+    .s-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+    .s-roll { font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
+    .s-meta { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+    #last-update { font-size: 12px; color: var(--text-dim); }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .stats-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .mini-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; }
+    .mini-stat .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+    .mini-stat .value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <div class="sidebar">
+    <div class="sidebar-logo"><h2>Exam Admin</h2><p>Control Panel</p></div>
+    <nav class="sidebar-nav">
+      <a href="/admin/dashboard" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <a href="/admin/questions" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Questions</a>
+      <a href="/admin/results" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Results</a>
+      <a href="/admin/monitor" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Live Monitor</a>
+    </nav>
+    <div class="sidebar-footer"><button class="btn btn-ghost btn-sm w-full" onclick="logout()">Logout</button></div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <span class="page-title">Live Monitor</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="live-dot"></div>
+        <span id="last-update">Updating...</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadMonitor()">Refresh</button>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="stats-row" id="monitor-stats"></div>
+      <div class="monitor-grid" id="monitor-grid">
+        <div class="text-muted" style="padding:20px;">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  checkAuth();
+  let refreshInterval;
+
+  async function checkAuth() {
+    const res = await fetch('/api/auth/admin/status', { credentials: 'include' });
+    if (!res.ok) { window.location.href = '/admin'; return; }
+    loadMonitor();
+    refreshInterval = setInterval(loadMonitor, 10000);
+  }
+
+  async function loadMonitor() {
+    try {
+      const res = await fetch('/api/admin/monitor', { credentials: 'include' });
+      const data = await res.json();
+      const students = data.students;
+
+      // Stats
+      const active = students.filter(s => s.status === 'in_exam').length;
+      const submitted = students.filter(s => s.status === 'submitted' || s.status === 'auto_submitted').length;
+      const violations = students.reduce((sum, s) => sum + (s.totalViolations || 0), 0);
+
+      document.getElementById('monitor-stats').innerHTML = `
+        <div class="mini-stat"><div class="label">Total</div><div class="value">${students.length}</div></div>
+        <div class="mini-stat"><div class="label">In Exam</div><div class="value text-success">${active}</div></div>
+        <div class="mini-stat"><div class="label">Submitted</div><div class="value">${submitted}</div></div>
+        <div class="mini-stat"><div class="label">Violations</div><div class="value text-danger">${violations}</div></div>
+      `;
+
+      // Cards
+      if (!students.length) {
+        document.getElementById('monitor-grid').innerHTML = '<div class="text-muted" style="padding:20px;">No students have logged in yet.</div>';
+        return;
+      }
+
+      document.getElementById('monitor-grid').innerHTML = students.map(s => {
+        const cardClass = s.totalViolations >= 2 ? 'violations' :
+          s.status === 'in_exam' ? 'active' :
+          s.status === 'submitted' ? 'submitted' :
+          s.status === 'auto_submitted' ? 'auto_submitted' : '';
+
+        const statusBadge = s.status === 'in_exam'
+          ? '<span class="badge badge-success">In Exam</span>'
+          : s.status === 'submitted'
+          ? '<span class="badge badge-info">Submitted</span>'
+          : s.status === 'auto_submitted'
+          ? '<span class="badge badge-warning">Auto Submitted</span>'
+          : `<span class="badge">${s.status}</span>`;
+
+        const loginTime = s.loginTime ? new Date(s.loginTime).toLocaleTimeString() : '—';
+
+        return `
+          <div class="student-card ${cardClass}">
+            <div class="s-name">${escHtml(s.fullName)}</div>
+            <div class="s-roll">${escHtml(s.rollNumber)}</div>
+            <div class="s-meta">
+              ${statusBadge}
+              ${s.totalViolations > 0 ? `<span class="badge badge-danger">${s.totalViolations} violations</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">Login: ${loginTime}</div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('last-update').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    } catch (e) { console.error(e); }
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function logout() {
+    await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/admin';
+  }
+</script>
+</body>
+</html>
