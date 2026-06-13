@@ -1,0 +1,14 @@
+.git
+.gitignore
+node_modules
+backend/node_modules
+frontend/node_modules
+.env
+.env.*
+!.env.example
+*.log
+*.pid
+*.detached.status
+npm-debug.log*
+Dockerfile
+README.md
