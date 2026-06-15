@@ -91,6 +91,10 @@ app.use('/api/mcq-student', require('./routes/mcqAuth'));
 app.use('/api/mcq-exam', require('./routes/mcqExam'));
 app.use('/api/mcq-admin', require('./routes/mcqAdmin'));
 
+app.get('/healthz', (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 app.get('/api/health', requireAdminAuth, async (req, res) => {
   const status = {
     ok: true,

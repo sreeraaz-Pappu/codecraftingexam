@@ -34,6 +34,24 @@ copy .env.example .env
 npm start
 ```
 
+## Deploy on Render
+
+This repo includes a Render Blueprint at `render.yaml`. It deploys the app as a Docker web service using the root `Dockerfile`.
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint from the repository.
+3. Fill these required environment variables when prompted:
+
+```env
+ADMIN_USERNAME=
+ADMIN_PASSWORD=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_DATABASE_URL=
+```
+
+Render generates `SESSION_SECRET` and `JWT_SECRET` automatically. The service health check is `GET /healthz`.
+
 ## Database
 
 The merged app now runs in Supabase/Postgres mode. On startup, it initializes these tables in the Supabase `public` schema:

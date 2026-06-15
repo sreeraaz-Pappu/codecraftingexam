@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: codecraftingexam
+    runtime: docker
+    plan: free
+    region: singapore
+    autoDeployTrigger: commit
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PROVIDER
+        value: supabase
+      - key: SESSION_NAME
+        value: exam_session
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CODE_EXECUTION_TIMEOUT
+        value: 5000
+      - key: EXAM_ACTIVE
+        value: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DATABASE_URL
+        sync: false
